@@ -143,23 +143,122 @@ const HomePage: React.FC = () => {
   );
 };
 
+// Simple SVG Icon Components
+const UsersIcon = ({ color, size = 48 }: { color: string; size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M16 7C16 9.20914 14.2091 11 12 11C9.79086 11 8 9.20914 8 7C8 4.79086 9.79086 3 12 3C14.2091 3 16 4.79086 16 7Z" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M12 14C8.13401 14 5 17.134 5 21H19C19 17.134 15.866 14 12 14Z" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
+const BuildingIcon = ({ color, size = 48 }: { color: string; size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M3 21H21" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M5 21V7L13 2V21" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M19 21V11H5" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M9 9V9.01" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M9 12V12.01" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M9 15V15.01" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M9 18V18.01" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
+const ChartIcon = ({ color, size = 48 }: { color: string; size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M3 3V21H21" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M7 16L12 11L16 15L21 10" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M21 10H16V15" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
+const CalendarIcon = ({ color, size = 48 }: { color: string; size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="3" y="4" width="18" height="18" rx="2" stroke={color} strokeWidth="2"/>
+    <path d="M16 2V6" stroke={color} strokeWidth="2" strokeLinecap="round"/>
+    <path d="M8 2V6" stroke={color} strokeWidth="2" strokeLinecap="round"/>
+    <path d="M3 10H21" stroke={color} strokeWidth="2" strokeLinecap="round"/>
+  </svg>
+);
+
+const ClockIcon = ({ color, size = 48 }: { color: string; size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="12" cy="12" r="10" stroke={color} strokeWidth="2"/>
+    <path d="M12 6V12L16 14" stroke={color} strokeWidth="2" strokeLinecap="round"/>
+  </svg>
+);
+
+const UmbrellaIcon = ({ color, size = 48 }: { color: string; size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M12 2V12" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M17 12C17 15.866 13.866 19 10 19C6.13401 19 3 15.866 3 12" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M12 12C12 9.79086 10.2091 8 8 8C5.79086 8 4 9.79086 4 12" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
+const MoneyIcon = ({ color, size = 48 }: { color: string; size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M12 1V23" stroke={color} strokeWidth="2" strokeLinecap="round"/>
+    <path d="M17 5H9.5C8.57174 5 7.6815 5.36875 7.02513 6.02513C6.36875 6.6815 6 7.57174 6 8.5C6 9.42826 6.36875 10.3185 7.02513 10.9749C7.6815 11.6313 8.57174 12 9.5 12H14.5C15.4283 12 16.3185 12.3687 16.9749 13.0251C17.6313 13.6815 18 14.5717 18 15.5C18 16.4283 17.6313 17.3185 16.9749 17.9749C16.3185 18.6313 15.4283 19 14.5 19H6" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
+const CardIcon = ({ color, size = 48 }: { color: string; size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="1" y="4" width="22" height="16" rx="2" stroke={color} strokeWidth="2"/>
+    <path d="M1 10H23" stroke={color} strokeWidth="2"/>
+  </svg>
+);
+
+const UserTieIcon = ({ color, size = 48 }: { color: string; size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M12 12C14.7614 12 17 9.76142 17 7C17 4.23858 14.7614 2 12 2C9.23858 2 7 4.23858 7 7C7 9.76142 9.23858 12 12 12Z" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M5 22V20C5 18.9391 5.42143 17.9217 6.17157 17.1716C6.92172 16.4214 7.93913 16 9 16H15C16.0609 16 17.0783 16.4214 17.8284 17.1716C18.5786 17.9217 19 18.9391 19 20V22" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M12 12V22" stroke={color} strokeWidth="2" strokeLinecap="round"/>
+    <path d="M9 16L10 22" stroke={color} strokeWidth="2" strokeLinecap="round"/>
+    <path d="M15 16L14 22" stroke={color} strokeWidth="2" strokeLinecap="round"/>
+  </svg>
+);
+
+const ChartLineIcon = ({ color, size = 48 }: { color: string; size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M3 3V21H21" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M7 16L12 11L16 15L21 10" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
+const GraduationIcon = ({ color, size = 48 }: { color: string; size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M22 10V15M22 10L12 5L2 10L12 15L22 10Z" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M2 10V20C2 20.5304 2.21071 21.0391 2.58579 21.4142C2.96086 21.7893 3.46957 22 4 22H9" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
+const ClipboardIcon = ({ color, size = 48 }: { color: string; size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M9 5H7C5.89543 5 5 5.89543 5 7V19C5 20.1046 5.89543 21 7 21H17C18.1046 21 19 20.1046 19 19V7C19 5.89543 18.1046 5 17 5H15" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M9 5C9 3.89543 9.89543 3 11 3H13C14.1046 3 15 3.89543 15 5V7H9V5Z" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M9 12H15" stroke={color} strokeWidth="2" strokeLinecap="round"/>
+    <path d="M9 16H15" stroke={color} strokeWidth="2" strokeLinecap="round"/>
+  </svg>
+);
+
 // Dashboard Component
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
 
   const dashboardItems = [
-    { name: 'Employees', icon: '👥' },
-    { name: 'Departments', icon: '🏢' },
-    { name: 'Projects', icon: '📊' },
-    { name: 'Calendar', icon: '📅' },
-    { name: 'Attendances', icon: '⏰' },
-    { name: 'Time Off', icon: '🏖️' },
-    { name: 'Payroll', icon: '💰' },
-    { name: 'Expenses', icon: '💳' },
-    { name: 'Recruitment', icon: '📝' },
-    { name: 'Performance', icon: '📈' },
-    { name: 'Training', icon: '🎓' },
-    { name: 'Reports', icon: '📋' },
+    { name: 'Employees', icon: UsersIcon, color: '#78176b' },
+    { name: 'Departments', icon: BuildingIcon, color: '#666666' },
+    { name: 'Projects', icon: ChartIcon, color: '#28a745' },
+    { name: 'Calendar', icon: CalendarIcon, color: '#007bff' },
+    { name: 'Attendances', icon: ClockIcon, color: '#dc3545' },
+    { name: 'Time Off', icon: UmbrellaIcon, color: '#ffc107' },
+    { name: 'Payroll', icon: MoneyIcon, color: '#ff9800' },
+    { name: 'Expenses', icon: CardIcon, color: '#2196f3' },
+    { name: 'Recruitment', icon: UserTieIcon, color: '#9c27b0' },
+    { name: 'Performance', icon: ChartLineIcon, color: '#00bcd4' },
+    { name: 'Training', icon: GraduationIcon, color: '#78176b' },
+    { name: 'Reports', icon: ClipboardIcon, color: '#ff5722' },
   ];
 
   return (
@@ -209,45 +308,54 @@ const Dashboard: React.FC = () => {
         gap: '32px 24px',
         maxWidth: '100%'
       }}>
-        {dashboardItems.map((item, index) => (
-          <div
-            key={index}
-            style={{
-              cursor: 'pointer',
-              transition: 'all 0.3s ease',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              textAlign: 'center'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'translateY(-4px)';
-              e.currentTarget.style.opacity = '0.8';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.opacity = '1';
-            }}
-          >
-            <div style={{
-              fontSize: '56px',
-              marginBottom: '12px',
-              lineHeight: 1,
-              filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))'
-            }}>
-              {item.icon}
+        {dashboardItems.map((item, index) => {
+          const IconComponent = item.icon;
+          return (
+            <div
+              key={index}
+              style={{
+                cursor: 'pointer',
+                transition: 'all 0.3s ease',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                textAlign: 'center'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-4px)';
+                const iconElement = e.currentTarget.querySelector('svg');
+                if (iconElement) {
+                  iconElement.style.stroke = COLORS.primary;
+                }
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                const iconElement = e.currentTarget.querySelector('svg');
+                if (iconElement) {
+                  iconElement.style.stroke = item.color;
+                }
+              }}
+            >
+              <div style={{
+                marginBottom: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <IconComponent color={item.color} size={48} />
+              </div>
+              <div style={{
+                color: COLORS.text,
+                fontSize: TYPOGRAPHY.textImportant.fontSize,
+                fontFamily: TYPOGRAPHY.fontFamily,
+                fontWeight: 500
+              }}>
+                {item.name}
+              </div>
             </div>
-            <div style={{
-              color: COLORS.text,
-              fontSize: TYPOGRAPHY.textImportant.fontSize,
-              fontFamily: TYPOGRAPHY.fontFamily,
-              fontWeight: 500
-            }}>
-              {item.name}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

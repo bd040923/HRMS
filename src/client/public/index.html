@@ -1,17 +1,46 @@
 <!DOCTYPE html>
-<html lang="">
+<html lang="en">
   <head>
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width,initial-scale=1.0">
-    <link rel="icon" href="<%= BASE_URL %>favicon.ico">
-    <title><%= htmlWebpackPlugin.options.title %></title>
+    <link rel="icon" href="/favicon.ico">
+    <title>Arithwise HRM</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: 'Segoe UI', Arial, sans-serif;
+        background-color: #faf3ff;
+      }
+      #app {
+        min-height: 100vh;
+        background-color: #faf3ff;
+      }
+      /* Loading indicator */
+      .loading {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        font-size: 16px;
+        font-family: 'Segoe UI', Arial, sans-serif;
+        color: #78176b;
+        background-color: #faf3ff;
+      }
+    </style>
   </head>
   <body>
     <noscript>
-      <strong>We're sorry but <%= htmlWebpackPlugin.options.title %> doesn't work properly without JavaScript enabled. Please enable it to continue.</strong>
+      <strong>We're sorry but Arithwise HRM doesn't work properly without JavaScript enabled. Please enable it to continue.</strong>
     </noscript>
-    <div id="app"></div>
-    <!-- built files will be auto injected -->
+    <div id="app">
+      <div class="loading">Loading...</div>
+    </div>
+    <script>
+      // Debug script to check if page loads
+      console.log('HTML loaded, looking for app div...');
+      console.log('App div found:', !!document.getElementById('app'));
+    </script>
   </body>
 </html>

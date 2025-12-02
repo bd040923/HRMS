@@ -38,6 +38,7 @@ import Training from './pages/Training';
 import Reports from './pages/Reports';
 import UserManagement from './pages/UserManagement';
 import MyInfo from './pages/MyInfo';
+import TimePage from './pages/TimePage';
 import JobTitles from './pages/Admin/JobTitles';
 import Organization from './pages/Admin/Organization';
 import Qualifications from './pages/Admin/Qualifications';
@@ -1258,7 +1259,7 @@ const App: React.FC = () => {
         <Route path="/departments" element={<ProtectedRoute requiredPermission="view_departments"><Departments /></ProtectedRoute>} />
         <Route path="/projects" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
         <Route path="/calendar" element={<ProtectedRoute><Calendar /></ProtectedRoute>} />
-        <Route path="/attendance" element={<ProtectedRoute><Attendance /></ProtectedRoute>} />
+        <Route path="/attendance" element={<ProtectedRoute><TimePage /></ProtectedRoute>} />
         <Route path="/leave" element={<ProtectedRoute><LeaveManagement /></ProtectedRoute>} />
         <Route path="/payroll" element={<ProtectedRoute requiredPermission="view_payroll"><Payroll /></ProtectedRoute>} />
         <Route path="/expenses" element={<ProtectedRoute><Expenses /></ProtectedRoute>} />

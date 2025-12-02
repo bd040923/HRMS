@@ -15,8 +15,34 @@
  * If not, see <https://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, Suspense } from 'react';
 import { Routes, Route, Link, useNavigate } from 'react-router-dom';
+import { useAuth } from './context/AuthContext';
+import { SidebarProvider, useSidebar } from './context/SidebarContext';
+import ProtectedRoute from './components/ProtectedRoute';
+import Sidebar from './components/Sidebar';
+import Login from './pages/Login';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
+import Employees from './pages/Employees';
+import Departments from './pages/Departments';
+import Projects from './pages/Projects';
+import Calendar from './pages/Calendar';
+import Attendance from './pages/Attendance';
+import LeaveManagement from './pages/LeaveManagement';
+import Payroll from './pages/Payroll';
+import Expenses from './pages/Expenses';
+import Recruitment from './pages/Recruitment';
+import Performance from './pages/Performance';
+import Training from './pages/Training';
+import Reports from './pages/Reports';
+import UserManagement from './pages/UserManagement';
+import JobTitles from './pages/Admin/JobTitles';
+import Organization from './pages/Admin/Organization';
+import Qualifications from './pages/Admin/Qualifications';
+import Nationalities from './pages/Admin/Nationalities';
+import CorporateBranding from './pages/Admin/CorporateBranding';
+import Configuration from './pages/Admin/Configuration';
 
 // Brand Colors
 const COLORS = {
@@ -57,6 +83,21 @@ const APP_NAME = process.env.REACT_APP_NAME || 'Arithwise HRM';
 
 // Home Page Component
 const HomePage: React.FC = () => {
+  const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
+
+  // Redirect to dashboard if authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [isAuthenticated, navigate]);
+
+  // Don't show home page if authenticated (will redirect)
+  if (isAuthenticated) {
+    return null;
+  }
+
   return (
     <div style={{ 
       textAlign: 'center', 
@@ -310,9 +351,26 @@ const Dashboard: React.FC = () => {
       }}>
         {dashboardItems.map((item, index) => {
           const IconComponent = item.icon;
+          const routeMap: { [key: string]: string } = {
+            'Employees': '/employees',
+            'Departments': '/departments',
+            'Projects': '/projects',
+            'Calendar': '/calendar',
+            'Attendances': '/attendance',
+            'Time Off': '/leave',
+            'Payroll': '/payroll',
+            'Expenses': '/expenses',
+            'Recruitment': '/recruitment',
+            'Performance': '/performance',
+            'Training': '/training',
+            'Reports': '/reports'
+          };
+          const route = routeMap[item.name] || '/dashboard';
+          
           return (
             <div
               key={index}
+              onClick={() => navigate(route)}
               style={{
                 cursor: 'pointer',
                 transition: 'all 0.3s ease',
@@ -449,6 +507,30 @@ const About: React.FC = () => {
         }}>
           Features
         </h3>
+        
+        {isAdmin() && (
+          <div style={{ marginTop: '20px' }}>
+            <Link
+              to="/admin/users"
+              style={{
+                display: 'inline-block',
+                padding: '10px 20px',
+                backgroundColor: COLORS.primary,
+                color: COLORS.white,
+                textDecoration: 'none',
+                borderRadius: '6px',
+                fontSize: TYPOGRAPHY.textImportant.fontSize,
+                fontFamily: TYPOGRAPHY.fontFamily,
+                fontWeight: 500,
+                transition: 'background-color 0.3s'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = COLORS.primaryHover}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = COLORS.primary}
+            >
+              Manage Users (Admin)
+            </Link>
+          </div>
+        )}
         <ul style={{ 
           color: COLORS.text,
           lineHeight: '1.6',
@@ -468,19 +550,238 @@ const About: React.FC = () => {
   );
 };
 
+// Header Icons
+const MessageIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M21 15C21 15.5304 20.7893 16.0391 20.4142 16.4142C20.0391 16.7893 19.5304 17 19 17H7L3 21V5C3 4.46957 3.21071 3.96086 3.58579 3.58579C3.96086 3.21071 4.46957 3 5 3H19C19.5304 3 20.0391 3.21071 20.4142 3.58579C20.7893 3.96086 21 4.46957 21 5V15Z" stroke={COLORS.text} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
+const HeaderClockIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="12" cy="12" r="10" stroke={COLORS.text} strokeWidth="2"/>
+    <path d="M12 6V12L16 14" stroke={COLORS.text} strokeWidth="2" strokeLinecap="round"/>
+  </svg>
+);
+
+const ChevronDownIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M6 9L12 15L18 9" stroke={COLORS.text} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
+const ChevronRightIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M9 18L15 12L9 6" stroke={COLORS.text} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
+// Profile Dropdown Component
+const ProfileDropdown: React.FC<{ isOpen: boolean; onClose: () => void; onLogout: () => void }> = ({ isOpen, onClose, onLogout }) => {
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        onClose();
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen, onClose]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div
+      ref={dropdownRef}
+      style={{
+        position: 'absolute',
+        top: '100%',
+        right: 0,
+        marginTop: '8px',
+        backgroundColor: COLORS.white,
+        borderRadius: '8px',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+        minWidth: '200px',
+        zIndex: 1000,
+        padding: '8px 0'
+      }}
+    >
+      <div
+        style={{
+          padding: '10px 16px',
+          fontSize: TYPOGRAPHY.textImportant.fontSize,
+          fontFamily: TYPOGRAPHY.fontFamily,
+          color: COLORS.text,
+          cursor: 'pointer',
+          transition: 'background-color 0.2s'
+        }}
+        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = COLORS.lightBg}
+        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+        onClick={onClose}
+      >
+        Help
+      </div>
+      <div
+        style={{
+          padding: '10px 16px',
+          fontSize: TYPOGRAPHY.textImportant.fontSize,
+          fontFamily: TYPOGRAPHY.fontFamily,
+          color: COLORS.text,
+          cursor: 'pointer',
+          transition: 'background-color 0.2s',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}
+        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = COLORS.lightBg}
+        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+        onClick={onClose}
+      >
+        <span>Shortcuts</span>
+        <span style={{ fontWeight: 600, color: COLORS.textLight }}>CTRL+K</span>
+      </div>
+      <div style={{
+        height: '1px',
+        backgroundColor: COLORS.border,
+        margin: '4px 0'
+      }} />
+      <div
+        style={{
+          padding: '10px 16px',
+          fontSize: TYPOGRAPHY.textImportant.fontSize,
+          fontFamily: TYPOGRAPHY.fontFamily,
+          color: COLORS.text,
+          cursor: 'pointer',
+          transition: 'background-color 0.2s',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}
+        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = COLORS.lightBg}
+        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+        onClick={onClose}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{
+            width: '8px',
+            height: '8px',
+            borderRadius: '50%',
+            backgroundColor: '#28a745'
+          }} />
+          <span>Online</span>
+        </div>
+        <ChevronRightIcon />
+      </div>
+      <div
+        style={{
+          padding: '10px 16px',
+          fontSize: TYPOGRAPHY.textImportant.fontSize,
+          fontFamily: TYPOGRAPHY.fontFamily,
+          color: COLORS.text,
+          cursor: 'pointer',
+          transition: 'background-color 0.2s'
+        }}
+        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = COLORS.lightBg}
+        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+        onClick={onClose}
+      >
+        My Preferences
+      </div>
+      <div
+        style={{
+          padding: '10px 16px',
+          fontSize: TYPOGRAPHY.textImportant.fontSize,
+          fontFamily: TYPOGRAPHY.fontFamily,
+          color: COLORS.text,
+          cursor: 'pointer',
+          transition: 'background-color 0.2s'
+        }}
+        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = COLORS.lightBg}
+        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+        onClick={onClose}
+      >
+        My databases
+      </div>
+      <div
+        style={{
+          padding: '10px 16px',
+          fontSize: TYPOGRAPHY.textImportant.fontSize,
+          fontFamily: TYPOGRAPHY.fontFamily,
+          color: COLORS.text,
+          cursor: 'pointer',
+          transition: 'background-color 0.2s'
+        }}
+        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = COLORS.lightBg}
+        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+        onClick={() => {
+          onClose();
+          onLogout();
+        }}
+      >
+        Log out
+      </div>
+    </div>
+  );
+};
+
 // Main App Component
 const App: React.FC = () => {
+  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  const { isAuthenticated, user, logout } = useAuth();
+  const navigate = useNavigate();
+
   useEffect(() => {
     console.log('🎉 App component mounted!');
     console.log('API Base URL:', API_BASE_URL);
     console.log('App Name:', APP_NAME);
   }, []);
 
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+    setProfileDropdownOpen(false);
+  };
+
+
+  // Show login page if not authenticated
+  if (!isAuthenticated) {
+    return (
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="*" element={<Login />} />
+      </Routes>
+    );
+  }
+
+  const { collapsed } = useSidebar();
+
   return (
     <div className="app" style={{ 
       minHeight: '100vh',
-      backgroundColor: COLORS.lightBg
+      backgroundColor: COLORS.lightBg,
+      display: 'flex'
     }}>
+      {/* Sidebar Navigation */}
+      <Sidebar />
+      
+      {/* Main Content Area */}
+      <div style={{ 
+        flex: 1, 
+        marginLeft: collapsed ? '60px' : '240px', 
+        transition: 'margin-left 0.3s ease',
+        display: 'flex', 
+        flexDirection: 'column' 
+      }}>
       {/* Navigation Bar */}
       <nav style={{
         backgroundColor: COLORS.white,
@@ -493,7 +794,7 @@ const App: React.FC = () => {
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          maxWidth: '1200px',
+          maxWidth: '1400px',
           margin: '0 auto'
         }}>
           <Link 
@@ -509,13 +810,12 @@ const App: React.FC = () => {
               src="/OIP.webp" 
               alt="Arithwise Logo" 
               style={{
-                height: '56px',
+                height: '40px',
                 width: 'auto',
                 objectFit: 'contain',
                 maxWidth: '200px'
               }}
               onError={(e) => {
-                // Fallback if logo doesn't load - show text instead
                 const target = e.target as HTMLImageElement;
                 target.style.display = 'none';
                 const parent = target.parentElement;
@@ -525,87 +825,157 @@ const App: React.FC = () => {
               }}
             />
           </Link>
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <Link 
-              to="/" 
-              style={{
-                color: COLORS.text,
-                textDecoration: 'none',
-                padding: '8px 16px',
-                borderRadius: '6px',
-                fontSize: TYPOGRAPHY.textImportant.fontSize,
-                fontFamily: TYPOGRAPHY.fontFamily,
-                fontWeight: 500,
-                transition: 'all 0.3s'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = COLORS.lightBg;
-                e.currentTarget.style.color = COLORS.primary;
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'transparent';
-                e.currentTarget.style.color = COLORS.text;
-              }}
+          
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '20px' 
+          }}>
+            {/* Messages Icon with Notification */}
+            <div style={{
+              position: 'relative',
+              cursor: 'pointer',
+              padding: '8px',
+              borderRadius: '6px',
+              transition: 'background-color 0.2s'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = COLORS.lightBg}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
             >
-              Home
-            </Link>
-            <Link 
-              to="/dashboard" 
-              style={{
-                color: COLORS.text,
-                textDecoration: 'none',
-                padding: '8px 16px',
-                borderRadius: '6px',
-                fontSize: TYPOGRAPHY.textImportant.fontSize,
-                fontFamily: TYPOGRAPHY.fontFamily,
-                fontWeight: 500,
-                transition: 'all 0.3s'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = COLORS.lightBg;
-                e.currentTarget.style.color = COLORS.primary;
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'transparent';
-                e.currentTarget.style.color = COLORS.text;
-              }}
+              <MessageIcon />
+              <div style={{
+                position: 'absolute',
+                top: '4px',
+                right: '4px',
+                width: '16px',
+                height: '16px',
+                borderRadius: '50%',
+                backgroundColor: '#dc3545',
+                color: COLORS.white,
+                fontSize: '10px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: 600,
+                fontFamily: TYPOGRAPHY.fontFamily
+              }}>
+                2
+              </div>
+            </div>
+
+            {/* Clock Icon */}
+            <div style={{
+              cursor: 'pointer',
+              padding: '8px',
+              borderRadius: '6px',
+              transition: 'background-color 0.2s'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = COLORS.lightBg}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
             >
-              Dashboard
-            </Link>
-            <Link 
-              to="/about" 
-              style={{
-                color: COLORS.text,
-                textDecoration: 'none',
-                padding: '8px 16px',
-                borderRadius: '6px',
-                fontSize: TYPOGRAPHY.textImportant.fontSize,
-                fontFamily: TYPOGRAPHY.fontFamily,
-                fontWeight: 500,
-                transition: 'all 0.3s'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = COLORS.lightBg;
-                e.currentTarget.style.color = COLORS.primary;
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'transparent';
-                e.currentTarget.style.color = COLORS.text;
-              }}
-            >
-              About
-            </Link>
+              <HeaderClockIcon />
+            </div>
+
+            {/* Company Name */}
+            <div style={{
+              fontSize: TYPOGRAPHY.textImportant.fontSize,
+              fontFamily: TYPOGRAPHY.fontFamily,
+              fontWeight: 500,
+              color: COLORS.text
+            }}>
+              {APP_NAME}
+            </div>
+
+            {/* Profile Picture with Dropdown */}
+            <div style={{
+              position: 'relative',
+              cursor: 'pointer'
+            }}>
+              <div
+                onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '4px 8px',
+                  borderRadius: '6px',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = COLORS.lightBg}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+              >
+                <div style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '50%',
+                  backgroundColor: COLORS.primary,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: COLORS.white,
+                  fontSize: '16px',
+                  fontWeight: 600,
+                  fontFamily: TYPOGRAPHY.fontFamily,
+                  position: 'relative'
+                }}>
+                  {user?.firstName?.charAt(0) || user?.username?.charAt(0).toUpperCase() || 'U'}
+                  <div style={{
+                    position: 'absolute',
+                    bottom: '0',
+                    right: '0',
+                    width: '12px',
+                    height: '12px',
+                    borderRadius: '50%',
+                    backgroundColor: '#28a745',
+                    border: `2px solid ${COLORS.white}`
+                  }} />
+                </div>
+                <ChevronDownIcon />
+              </div>
+              <ProfileDropdown 
+                isOpen={profileDropdownOpen} 
+                onClose={() => setProfileDropdownOpen(false)}
+                onLogout={handleLogout}
+              />
+            </div>
           </div>
         </div>
       </nav>
 
       {/* Main Content */}
       <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/about" element={<About />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        
+        <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
+        <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+        <Route path="/about" element={<ProtectedRoute><About /></ProtectedRoute>} />
+        
+        <Route path="/employees" element={<ProtectedRoute requiredPermission="view_employees"><Employees /></ProtectedRoute>} />
+        <Route path="/departments" element={<ProtectedRoute requiredPermission="view_departments"><Departments /></ProtectedRoute>} />
+        <Route path="/projects" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
+        <Route path="/calendar" element={<ProtectedRoute><Calendar /></ProtectedRoute>} />
+        <Route path="/attendance" element={<ProtectedRoute><Attendance /></ProtectedRoute>} />
+        <Route path="/leave" element={<ProtectedRoute><LeaveManagement /></ProtectedRoute>} />
+        <Route path="/payroll" element={<ProtectedRoute requiredPermission="view_payroll"><Payroll /></ProtectedRoute>} />
+        <Route path="/expenses" element={<ProtectedRoute><Expenses /></ProtectedRoute>} />
+        <Route path="/recruitment" element={<ProtectedRoute><Recruitment /></ProtectedRoute>} />
+        <Route path="/performance" element={<ProtectedRoute><Performance /></ProtectedRoute>} />
+        <Route path="/training" element={<ProtectedRoute><Training /></ProtectedRoute>} />
+        <Route path="/reports" element={<ProtectedRoute requiredPermission="view_reports"><Reports /></ProtectedRoute>} />
+        <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><UserManagement /></ProtectedRoute>} />
+        <Route path="/admin/users" element={<ProtectedRoute requiredRole="admin"><UserManagement /></ProtectedRoute>} />
+        <Route path="/admin/job" element={<JobTitles />} />
+        <Route path="/admin/job-titles" element={<JobTitles />} />
+        <Route path="/admin/organization" element={<Organization />} />
+        <Route path="/admin/qualifications" element={<Qualifications />} />
+        <Route path="/admin/nationalities" element={<Nationalities />} />
+        <Route path="/admin/branding" element={<CorporateBranding />} />
+        <Route path="/admin/configuration" element={<Configuration />} />
       </Routes>
-    </div>
+      </div>
+      </div>
   );
 };
 

@@ -423,40 +423,55 @@ const Employees: React.FC = () => {
       </h3>
 
       <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
-        <div
-          style={{
-            width: '200px',
-            height: '200px',
-            borderRadius: '50%',
-            backgroundColor: COLORS.lightBg,
-            border: `1px dashed ${COLORS.border}`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            position: 'relative',
-            flexShrink: 0,
-          }}
-        >
-          <span style={{ fontSize: '48px', color: COLORS.textLight }}>👤</span>
+        <div style={{ flexShrink: 0, textAlign: 'center' }}>
           <div
             style={{
-              width: '42px',
-              height: '42px',
+              width: '200px',
+              height: '200px',
               borderRadius: '50%',
-              backgroundColor: '#ff9800',
-              color: COLORS.white,
-              position: 'absolute',
-              bottom: '8px',
-              right: '8px',
+              backgroundColor: COLORS.lightBg,
+              border: `1px dashed ${COLORS.border}`,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: '24px',
-              fontWeight: 600,
-              cursor: 'pointer',
+              position: 'relative',
+              margin: '0 auto',
             }}
           >
-            +
+            <span style={{ fontSize: '48px', color: COLORS.textLight }}>👤</span>
+            <div
+              style={{
+                width: '42px',
+                height: '42px',
+                borderRadius: '50%',
+                backgroundColor: '#ff9800',
+                color: COLORS.white,
+                position: 'absolute',
+                bottom: '8px',
+                right: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '24px',
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              +
+            </div>
+          </div>
+          <div
+            style={{
+              marginTop: '12px',
+              fontFamily: TYPOGRAPHY.fontFamily,
+              fontSize: TYPOGRAPHY.textNote.fontSize,
+              color: COLORS.textLight,
+              lineHeight: 1.4,
+            }}
+          >
+            Accepts jpg, png, gif up to 1MB. Recommended
+            <br />
+            dimensions: 200px × 200px
           </div>
         </div>
 
@@ -591,6 +606,16 @@ const Employees: React.FC = () => {
             </button>
           </div>
         </div>
+      </div>
+      <div
+        style={{
+          marginTop: '8px',
+          fontFamily: TYPOGRAPHY.fontFamily,
+          fontSize: TYPOGRAPHY.textNote.fontSize,
+          color: COLORS.textLight,
+        }}
+      >
+        * Required
       </div>
     </div>
   );
@@ -768,9 +793,9 @@ const Employees: React.FC = () => {
   return (
     <div
       style={{
-        padding: '24px 20px',
-        maxWidth: '1400px',
-        margin: '0 auto',
+        padding: '24px 32px',
+        maxWidth: '100%',
+        margin: '0',
         backgroundColor: COLORS.lightBg,
         minHeight: 'calc(100vh - 80px)',
       }}

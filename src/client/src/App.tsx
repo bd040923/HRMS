@@ -37,6 +37,7 @@ import Performance from './pages/Performance';
 import Training from './pages/Training';
 import Reports from './pages/Reports';
 import UserManagement from './pages/UserManagement';
+import MyInfo from './pages/MyInfo';
 import JobTitles from './pages/Admin/JobTitles';
 import Organization from './pages/Admin/Organization';
 import Qualifications from './pages/Admin/Qualifications';
@@ -287,133 +288,434 @@ const ClipboardIcon = ({ color, size = 48 }: { color: string; size?: number }) =
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
 
-  const dashboardItems = [
-    { name: 'Employees', icon: UsersIcon, color: '#78176b' },
-    { name: 'Departments', icon: BuildingIcon, color: '#666666' },
-    { name: 'Projects', icon: ChartIcon, color: '#28a745' },
-    { name: 'Calendar', icon: CalendarIcon, color: '#007bff' },
-    { name: 'Attendances', icon: ClockIcon, color: '#dc3545' },
-    { name: 'Time Off', icon: UmbrellaIcon, color: '#ffc107' },
-    { name: 'Payroll', icon: MoneyIcon, color: '#ff9800' },
-    { name: 'Expenses', icon: CardIcon, color: '#2196f3' },
-    { name: 'Recruitment', icon: UserTieIcon, color: '#9c27b0' },
-    { name: 'Performance', icon: ChartLineIcon, color: '#00bcd4' },
-    { name: 'Training', icon: GraduationIcon, color: '#78176b' },
-    { name: 'Reports', icon: ClipboardIcon, color: '#ff5722' },
+  const quickLaunchItems = [
+    { name: 'Apply Leave', icon: UmbrellaIcon, route: '/leave-management' },
+    { name: 'Leave List', icon: CalendarIcon, route: '/leave-management' },
+    { name: 'Timesheets', icon: ClockIcon, route: '/attendance' },
+    { name: 'My Info', icon: UsersIcon, route: '/employees' },
+    { name: 'Recruitment', icon: UserTieIcon, route: '/recruitment' },
+    { name: 'Reports', icon: ClipboardIcon, route: '/reports' },
   ];
 
   return (
-    <div style={{ 
-      padding: '24px 20px', 
-      maxWidth: '1400px', 
-      margin: '0 auto',
-      backgroundColor: COLORS.lightBg,
-      minHeight: 'calc(100vh - 80px)'
-    }}>
-      <div style={{ marginBottom: '20px' }}>
-        <button
-          onClick={() => navigate('/')}
-          style={{
-            padding: '8px 16px',
-            backgroundColor: COLORS.textLight,
-            color: COLORS.white,
-            border: 'none',
-            borderRadius: '6px',
-            cursor: 'pointer',
-            fontSize: TYPOGRAPHY.textNote.fontSize,
-            fontFamily: TYPOGRAPHY.fontFamily,
-            fontWeight: 500,
-            transition: 'background-color 0.3s'
-          }}
-          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#555'}
-          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = COLORS.textLight}
-        >
-          ← Back to Home
-        </button>
-      </div>
-      
-      <h1 style={{ 
-        color: COLORS.primary, 
-        marginBottom: '24px',
-        marginTop: 0,
-        fontSize: TYPOGRAPHY.heading.fontSize,
-        fontFamily: TYPOGRAPHY.fontFamily,
-        fontWeight: TYPOGRAPHY.heading.fontWeight
-      }}>
+    <div
+      style={{
+        padding: '24px 32px',
+        maxWidth: '100%',
+        margin: '0',
+        backgroundColor: COLORS.lightBg,
+        minHeight: 'calc(100vh - 80px)',
+      }}
+    >
+      <button
+        onClick={() => navigate('/')}
+        style={{
+          padding: '8px 16px',
+          backgroundColor: COLORS.textLight,
+          color: COLORS.white,
+          border: 'none',
+          borderRadius: '6px',
+          cursor: 'pointer',
+          fontSize: TYPOGRAPHY.textNote.fontSize,
+          fontFamily: TYPOGRAPHY.fontFamily,
+          fontWeight: 500,
+          marginBottom: '20px',
+        }}
+      >
+        ← Back to Home
+      </button>
+
+      <h1
+        style={{
+          color: COLORS.primary,
+          marginBottom: '8px',
+          marginTop: 0,
+          fontSize: TYPOGRAPHY.heading.fontSize,
+          fontFamily: TYPOGRAPHY.fontFamily,
+          fontWeight: TYPOGRAPHY.heading.fontWeight,
+        }}
+      >
         Dashboard
       </h1>
-      
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
-        gap: '32px 24px',
-        maxWidth: '100%'
-      }}>
-        {dashboardItems.map((item, index) => {
-          const IconComponent = item.icon;
-          const routeMap: { [key: string]: string } = {
-            'Employees': '/employees',
-            'Departments': '/departments',
-            'Projects': '/projects',
-            'Calendar': '/calendar',
-            'Attendances': '/attendance',
-            'Time Off': '/leave',
-            'Payroll': '/payroll',
-            'Expenses': '/expenses',
-            'Recruitment': '/recruitment',
-            'Performance': '/performance',
-            'Training': '/training',
-            'Reports': '/reports'
-          };
-          const route = routeMap[item.name] || '/dashboard';
-          
-          return (
-            <div
-              key={index}
-              onClick={() => navigate(route)}
-              style={{
-                cursor: 'pointer',
-                transition: 'all 0.3s ease',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                textAlign: 'center'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-4px)';
-                const iconElement = e.currentTarget.querySelector('svg');
-                if (iconElement) {
-                  iconElement.style.stroke = COLORS.primary;
-                }
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                const iconElement = e.currentTarget.querySelector('svg');
-                if (iconElement) {
-                  iconElement.style.stroke = item.color;
-                }
-              }}
-            >
-              <div style={{
-                marginBottom: '12px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}>
-                <IconComponent color={item.color} size={48} />
+      <p
+        style={{
+          marginTop: 0,
+          marginBottom: '24px',
+          fontFamily: TYPOGRAPHY.fontFamily,
+          fontSize: TYPOGRAPHY.textNote.fontSize,
+          color: COLORS.textLight,
+        }}
+      >
+        Overview of your time, leave and workforce insights.
+      </p>
+
+      {/* Widgets grid */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(12, 1fr)',
+          gap: '16px',
+        }}
+      >
+        {/* Time at Work */}
+        <div
+          style={{
+            gridColumn: 'span 3',
+            backgroundColor: COLORS.white,
+            borderRadius: '12px',
+            border: `1px solid ${COLORS.border}`,
+            padding: '16px 18px',
+            boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+          }}
+        >
+          <div
+            style={{
+              fontFamily: TYPOGRAPHY.fontFamily,
+              fontSize: TYPOGRAPHY.textImportant.fontSize,
+              fontWeight: 600,
+              color: COLORS.text,
+              marginBottom: '12px',
+            }}
+          >
+            Time at Work
+          </div>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '12px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div
+                style={{
+                  width: '34px',
+                  height: '34px',
+                  borderRadius: '50%',
+                  backgroundColor: COLORS.lightBg,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: COLORS.primary,
+                  fontWeight: 600,
+                  fontFamily: TYPOGRAPHY.fontFamily,
+                }}
+              >
+                A
               </div>
-              <div style={{
-                color: COLORS.text,
-                fontSize: TYPOGRAPHY.textImportant.fontSize,
-                fontFamily: TYPOGRAPHY.fontFamily,
-                fontWeight: 500
-              }}>
-                {item.name}
+              <div
+                style={{
+                  fontFamily: TYPOGRAPHY.fontFamily,
+                  fontSize: TYPOGRAPHY.textNote.fontSize,
+                  color: COLORS.text,
+                }}
+              >
+                Punched Out
               </div>
             </div>
-          );
-        })}
+            <button
+              style={{
+                padding: '6px 12px',
+                borderRadius: '16px',
+                border: 'none',
+                backgroundColor: COLORS.primary,
+                color: COLORS.white,
+                fontFamily: TYPOGRAPHY.fontFamily,
+                fontSize: TYPOGRAPHY.textNote.fontSize,
+                cursor: 'pointer',
+              }}
+            >
+              Punch In
+            </button>
+          </div>
+          <div
+            style={{
+              fontFamily: TYPOGRAPHY.fontFamily,
+              fontSize: TYPOGRAPHY.textNote.fontSize,
+              color: COLORS.textLight,
+              marginBottom: '8px',
+            }}
+          >
+            0h 0m Today
+          </div>
+          <div
+            style={{
+              display: 'flex',
+              gap: '4px',
+              marginTop: '12px',
+            }}
+          >
+            {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => (
+              <div
+                key={d}
+                style={{
+                  flex: 1,
+                  height: '36px',
+                  borderRadius: '6px',
+                  backgroundColor: COLORS.lightBg,
+                }}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* My Actions */}
+        <div
+          style={{
+            gridColumn: 'span 3',
+            backgroundColor: COLORS.white,
+            borderRadius: '12px',
+            border: `1px solid ${COLORS.border}`,
+            padding: '16px 18px',
+            boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+          }}
+        >
+          <div
+            style={{
+              fontFamily: TYPOGRAPHY.fontFamily,
+              fontSize: TYPOGRAPHY.textImportant.fontSize,
+              fontWeight: 600,
+              color: COLORS.text,
+              marginBottom: '12px',
+            }}
+          >
+            My Actions
+          </div>
+          <ul
+            style={{
+              listStyle: 'none',
+              padding: 0,
+              margin: 0,
+              fontFamily: TYPOGRAPHY.fontFamily,
+              fontSize: TYPOGRAPHY.textNote.fontSize,
+              color: COLORS.text,
+            }}
+          >
+            <li>1 Timesheet to Approve</li>
+            <li>1 Pending Self Review</li>
+          </ul>
+        </div>
+
+        {/* Quick Launch */}
+        <div
+          style={{
+            gridColumn: 'span 3',
+            backgroundColor: COLORS.white,
+            borderRadius: '12px',
+            border: `1px solid ${COLORS.border}`,
+            padding: '16px 18px',
+            boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+          }}
+        >
+          <div
+            style={{
+              fontFamily: TYPOGRAPHY.fontFamily,
+              fontSize: TYPOGRAPHY.textImportant.fontSize,
+              fontWeight: 600,
+              color: COLORS.text,
+              marginBottom: '12px',
+            }}
+          >
+            Quick Launch
+          </div>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, 1fr)',
+              gap: '12px',
+            }}
+          >
+            {quickLaunchItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <div
+                  key={item.name}
+                  onClick={() => navigate(item.route)}
+                  style={{
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    padding: '8px 4px',
+                    borderRadius: '8px',
+                    transition: 'background-color 0.2s',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = COLORS.lightBg)}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                >
+                  <Icon color={COLORS.primary} size={28} />
+                  <div
+                    style={{
+                      marginTop: '4px',
+                      fontFamily: TYPOGRAPHY.fontFamily,
+                      fontSize: TYPOGRAPHY.textNote.fontSize,
+                      color: COLORS.text,
+                    }}
+                  >
+                    {item.name}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Employees on Leave Today */}
+        <div
+          style={{
+            gridColumn: 'span 3',
+            backgroundColor: COLORS.white,
+            borderRadius: '12px',
+            border: `1px solid ${COLORS.border}`,
+            padding: '16px 18px',
+            boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+          }}
+        >
+          <div
+            style={{
+              fontFamily: TYPOGRAPHY.fontFamily,
+              fontSize: TYPOGRAPHY.textImportant.fontSize,
+              fontWeight: 600,
+              color: COLORS.text,
+              marginBottom: '12px',
+            }}
+          >
+            Employees on Leave Today
+          </div>
+          <div
+            style={{
+              height: '120px',
+              borderRadius: '8px',
+              backgroundColor: COLORS.lightBg,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontFamily: TYPOGRAPHY.fontFamily,
+              fontSize: TYPOGRAPHY.textNote.fontSize,
+              color: COLORS.textLight,
+            }}
+          >
+            No employees are on leave today
+          </div>
+        </div>
+
+        {/* Buzz Latest Posts */}
+        <div
+          style={{
+            gridColumn: 'span 4',
+            backgroundColor: COLORS.white,
+            borderRadius: '12px',
+            border: `1px solid ${COLORS.border}`,
+            padding: '16px 18px',
+            boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+          }}
+        >
+          <div
+            style={{
+              fontFamily: TYPOGRAPHY.fontFamily,
+              fontSize: TYPOGRAPHY.textImportant.fontSize,
+              fontWeight: 600,
+              color: COLORS.text,
+              marginBottom: '12px',
+            }}
+          >
+            Buzz Latest Posts
+          </div>
+          <ul
+            style={{
+              listStyle: 'none',
+              padding: 0,
+              margin: 0,
+              fontFamily: TYPOGRAPHY.fontFamily,
+              fontSize: TYPOGRAPHY.textNote.fontSize,
+              color: COLORS.text,
+            }}
+          >
+            <li>Welcome to Arithwise HRM!</li>
+            <li>New leave policy effective from next month.</li>
+            <li>Remember to submit timesheets by Friday.</li>
+          </ul>
+        </div>
+
+        {/* Employee Distribution by Sub Unit */}
+        <div
+          style={{
+            gridColumn: 'span 4',
+            backgroundColor: COLORS.white,
+            borderRadius: '12px',
+            border: `1px solid ${COLORS.border}`,
+            padding: '16px 18px',
+            boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+          }}
+        >
+          <div
+            style={{
+              fontFamily: TYPOGRAPHY.fontFamily,
+              fontSize: TYPOGRAPHY.textImportant.fontSize,
+              fontWeight: 600,
+              color: COLORS.text,
+              marginBottom: '12px',
+            }}
+          >
+            Employee Distribution by Sub Unit
+          </div>
+          <div
+            style={{
+              height: '180px',
+              borderRadius: '90px',
+              background: `conic-gradient(${COLORS.primary} 0 80%, ${COLORS.lightBg} 80% 100%)`,
+              margin: '0 auto',
+              maxWidth: '220px',
+              position: 'relative',
+            }}
+          >
+            <div
+              style={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                fontFamily: TYPOGRAPHY.fontFamily,
+                fontSize: TYPOGRAPHY.textNote.fontSize,
+                color: COLORS.white,
+              }}
+            >
+              80%
+            </div>
+          </div>
+        </div>
+
+        {/* Employee Distribution by Location */}
+        <div
+          style={{
+            gridColumn: 'span 4',
+            backgroundColor: COLORS.white,
+            borderRadius: '12px',
+            border: `1px solid ${COLORS.border}`,
+            padding: '16px 18px',
+            boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+          }}
+        >
+          <div
+            style={{
+              fontFamily: TYPOGRAPHY.fontFamily,
+              fontSize: TYPOGRAPHY.textImportant.fontSize,
+              fontWeight: 600,
+              color: COLORS.text,
+              marginBottom: '12px',
+            }}
+          >
+            Employee Distribution by Location
+          </div>
+          <div
+            style={{
+              height: '180px',
+              borderRadius: '90px',
+              background: `conic-gradient(#28a745 0 50%, #ff9800 50% 75%, ${COLORS.primary} 75% 100%)`,
+              margin: '0 auto',
+              maxWidth: '220px',
+            }}
+          />
+        </div>
       </div>
     </div>
   );
@@ -964,6 +1266,7 @@ const App: React.FC = () => {
         <Route path="/performance" element={<ProtectedRoute><Performance /></ProtectedRoute>} />
         <Route path="/training" element={<ProtectedRoute><Training /></ProtectedRoute>} />
         <Route path="/reports" element={<ProtectedRoute requiredPermission="view_reports"><Reports /></ProtectedRoute>} />
+        <Route path="/my-info" element={<ProtectedRoute><MyInfo /></ProtectedRoute>} />
         <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><UserManagement /></ProtectedRoute>} />
         <Route path="/admin/users" element={<ProtectedRoute requiredRole="admin"><UserManagement /></ProtectedRoute>} />
         <Route path="/admin/job" element={<JobTitles />} />

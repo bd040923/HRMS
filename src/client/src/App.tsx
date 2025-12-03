@@ -1047,6 +1047,20 @@ const App: React.FC = () => {
     console.log('App Name:', APP_NAME);
   }, []);
 
+  useEffect(() => {
+    const pingBackend = async () => {
+      try {
+        const response = await fetch('http://localhost:3001/api/test');
+        const data = await response.json();
+        console.log('✅ Backend test response:', data);
+      } catch (error) {
+        console.error('❌ Backend test request failed:', error);
+      }
+    };
+
+    pingBackend();
+  }, []);
+
   const handleLogout = () => {
     logout();
     navigate('/login');

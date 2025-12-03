@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { apiService } from '../services/api';
 
 const COLORS = {
   primary: '#78176b',
@@ -20,16 +21,6 @@ const TYPOGRAPHY = {
   textNote: { fontSize: '14px' },
 };
 
-const jobTitles = [
-  'Account Assistant',
-  'Automation Tester',
-  'Chief Executive Officer',
-  'Chief Financial Officer',
-  'Chief Technical Officer',
-  'Content Specialist',
-  'Customer Success Manager',
-];
-
 const employmentStatuses = [
   'Freelance',
   'Full-Time Contract',
@@ -39,46 +30,228 @@ const employmentStatuses = [
   'Part-Time Internship',
 ];
 
-const subUnits = [
-  'Arithwise HRM',
-  'Administration',
-  'Engineering',
-  'Development',
-  'Quality Assurance',
-];
+const subUnits = ['Arithwise HRM', 'Administration', 'Engineering', 'Development', 'Quality Assurance'];
+const includeOptions = ['Current Employees Only', 'Current and Past Employees', 'Past Employees Only'];
+const configurationOptions = ['Optional Fields', 'Custom Fields', 'Data Import', 'Reporting Methods', 'Termination Reasons'];
+const reportRows = ['All Employee Sub Unit Hierarchy Report', 'Employee Contact Info Report', 'Employee Job Details', 'PIM Sample Report'];
 
-const includeOptions = [
-  'Current Employees Only',
-  'Current and Past Employees',
-  'Past Employees Only',
-];
+interface EmployeeRecord {
+  id: number;
+  employee_id: string;
+  first_name: string;
+  middle_name?: string | null;
+  last_name: string;
+  email?: string | null;
+  phone?: string | null;
+  job_title?: string | null;
+  employment_status?: string | null;
+  sub_unit?: string | null;
+  supervisor_name?: string | null;
+  status?: string | null;
+  hire_date?: string | null;
+  full_name?: string;
+}
 
-const configurationOptions = [
-  'Optional Fields',
-  'Custom Fields',
-  'Data Import',
-  'Reporting Methods',
-  'Termination Reasons',
-];
+interface EmployeeFilters {
+  employeeId: string;
+  employeeName: string;
+  jobTitle: string;
+  employmentStatus: string;
+  subUnit: string;
+  supervisor: string;
+  include: string;
+}
 
-const employeeRows = [
-  { id: '001', name: 'Anita Silva', lastName: 'Silva', jobTitle: 'Automation Tester', status: 'Full-Time Permanent', subUnit: 'Engineering', supervisor: 'Alex Mathew' },
-  { id: '002', name: 'Brian Costa', lastName: 'Costa', jobTitle: 'Content Specialist', status: 'Part-Time Contract', subUnit: 'Administration', supervisor: 'Sara Dias' },
-  { id: '003', name: 'Carla Gomez', lastName: 'Gomez', jobTitle: 'Customer Success Manager', status: 'Full-Time Probation', subUnit: 'Arithwise HRM', supervisor: 'Alex Mathew' },
-];
+interface EmployeeFormState {
+  employeeId: string;
+  firstName: string;
+  middleName: string;
+  lastName: string;
+  jobTitle: string;
+  employmentStatus: string;
+  subUnit: string;
+  supervisorName: string;
+  email: string;
+  phone: string;
+  hireDate: string;
+  status: string;
+}
 
-const reportRows = [
-  'All Employee Sub Unit Hierarchy Report',
-  'Employee Contact Info Report',
-  'Employee Job Details',
-  'PIM Sample Report',
-];
+const defaultFilters: EmployeeFilters = {
+  employeeId: '',
+  employeeName: '',
+  jobTitle: '',
+  employmentStatus: '',
+  subUnit: '',
+  supervisor: '',
+  include: 'Current Employees Only',
+};
+
+const defaultForm: EmployeeFormState = {
+  employeeId: '',
+  firstName: '',
+  middleName: '',
+  lastName: '',
+  jobTitle: '',
+  employmentStatus: 'Full-Time Permanent',
+  subUnit: '',
+  supervisorName: '',
+  email: '',
+  phone: '',
+  hireDate: '',
+  status: 'active',
+};
 
 const Employees: React.FC = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'configuration' | 'list' | 'add' | 'reports'>('list');
-  const [showConfigMenu, setShowConfigMenu] = useState(false);
+  const [filters, setFilters] = useState<EmployeeFilters>({ ...defaultFilters });
+  const [employees, setEmployees] = useState<EmployeeRecord[]>([]);
+  const [jobTitleOptions, setJobTitleOptions] = useState<string[]>([]);
+  const [employeeForm, setEmployeeForm] = useState<EmployeeFormState>({ ...defaultForm });
+  const [editingEmployee, setEditingEmployee] = useState<EmployeeRecord | null>(null);
   const [loginDetails, setLoginDetails] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    void loadJobTitles();
+    void fetchEmployees(defaultFilters);
+  }, []);
+
+  const formattedEmployees = useMemo(
+    () =>
+      employees.map((emp) => ({
+        ...emp,
+        fullName: [emp.first_name, emp.middle_name, emp.last_name].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim(),
+      })),
+    [employees]
+  );
+
+  const supervisorOptions = useMemo(
+    () => formattedEmployees.filter((emp) => emp.status === 'active').map((emp) => emp.fullName || emp.employee_id),
+    [formattedEmployees]
+  );
+
+  const loadJobTitles = async () => {
+    try {
+      const data = await apiService.getJobTitles();
+      const titles = Array.isArray(data) ? data.map((item: any) => item?.title).filter(Boolean) : [];
+      setJobTitleOptions(titles.length ? titles : ['Account Assistant', 'Automation Tester', 'Content Specialist']);
+    } catch {
+      setJobTitleOptions(['Account Assistant', 'Automation Tester', 'Content Specialist']);
+    }
+  };
+
+  const fetchEmployees = async (payload: EmployeeFilters = filters) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await apiService.getEmployeeDirectory(payload);
+      setEmployees(Array.isArray(data) ? data : []);
+    } catch (err: any) {
+      setError(err?.message || 'Unable to load employees');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleFilterChange = (key: keyof EmployeeFilters, value: string) => {
+    setFilters((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleSearch = () => void fetchEmployees(filters);
+
+  const resetFilters = () => {
+    const reset = { ...defaultFilters };
+    setFilters(reset);
+    void fetchEmployees(reset);
+  };
+
+  const openAddForm = () => {
+    setEmployeeForm({ ...defaultForm });
+    setEditingEmployee(null);
+    setLoginDetails(false);
+    setError(null);
+    setActiveTab('add');
+  };
+
+  const handleEdit = (employee: EmployeeRecord) => {
+    setEditingEmployee(employee);
+    setEmployeeForm({
+      employeeId: employee.employee_id,
+      firstName: employee.first_name,
+      middleName: employee.middle_name || '',
+      lastName: employee.last_name,
+      jobTitle: employee.job_title || '',
+      employmentStatus: employee.employment_status || '',
+      subUnit: employee.sub_unit || '',
+      supervisorName: employee.supervisor_name || '',
+      email: employee.email || '',
+      phone: employee.phone || '',
+      hireDate: employee.hire_date ? employee.hire_date.split('T')[0] : '',
+      status: employee.status || 'active',
+    });
+    setLoginDetails(false);
+    setError(null);
+    setActiveTab('add');
+  };
+
+  const handleDelete = async (employee: EmployeeRecord) => {
+    if (!window.confirm(`Delete ${employee.full_name || employee.first_name}?`)) {
+      return;
+    }
+    try {
+      await apiService.deleteEmployee(employee.id);
+      await fetchEmployees();
+    } catch (err: any) {
+      setError(err?.message || 'Unable to delete employee');
+    }
+  };
+
+  const handleFormChange = (key: keyof EmployeeFormState, value: string) => {
+    setEmployeeForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleSaveEmployee = async () => {
+    if (!employeeForm.employeeId.trim() || !employeeForm.firstName.trim() || !employeeForm.lastName.trim()) {
+      setError('Employee ID, First Name and Last Name are required.');
+      return;
+    }
+
+    const payload = {
+      employeeId: employeeForm.employeeId.trim(),
+      firstName: employeeForm.firstName.trim(),
+      middleName: employeeForm.middleName.trim(),
+      lastName: employeeForm.lastName.trim(),
+      email: employeeForm.email.trim() || undefined,
+      phone: employeeForm.phone.trim() || undefined,
+      jobTitle: employeeForm.jobTitle.trim() || undefined,
+      employmentStatus: employeeForm.employmentStatus || undefined,
+      subUnit: employeeForm.subUnit || undefined,
+      supervisorName: employeeForm.supervisorName.trim() || undefined,
+      status: employeeForm.status,
+      hireDate: employeeForm.hireDate || undefined,
+    };
+
+    try {
+      setIsSaving(true);
+      if (editingEmployee) {
+        await apiService.updateEmployee(editingEmployee.id, payload);
+      } else {
+        await apiService.createEmployee(payload);
+      }
+      setEmployeeForm({ ...defaultForm });
+      setEditingEmployee(null);
+      setActiveTab('list');
+      await fetchEmployees();
+    } catch (err: any) {
+      setError(err?.message || 'Unable to save employee');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const renderFilters = () => (
     <div
@@ -91,104 +264,22 @@ const Employees: React.FC = () => {
         boxShadow: '0 2px 6px rgba(0,0,0,0.05)',
       }}
     >
-      <h3
-        style={{
-          fontFamily: TYPOGRAPHY.fontFamily,
-          fontSize: TYPOGRAPHY.textImportant.fontSize,
-          fontWeight: 600,
-          margin: '0 0 20px',
-          color: COLORS.text,
-        }}
-      >
-        Employee Information
-      </h3>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        <h3 style={{ fontFamily: TYPOGRAPHY.fontFamily, fontSize: TYPOGRAPHY.textImportant.fontSize, fontWeight: 600, margin: 0, color: COLORS.text }}>
+          Employee Information
+        </h3>
+        {error && activeTab === 'list' && (
+          <div style={{ backgroundColor: '#fdecea', color: '#b71c1c', borderRadius: '6px', padding: '8px 12px', fontFamily: TYPOGRAPHY.fontFamily }}>{error}</div>
+        )}
+      </div>
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-          gap: '16px',
-          marginBottom: '20px',
-        }}
-      >
-        {[
-          { label: 'Employee Name', type: 'text', placeholder: 'Type for hints...' },
-          { label: 'Employee ID', type: 'text', placeholder: 'Type for hints...' },
-        ].map((field) => (
-          <div key={field.label} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <label
-              style={{
-                fontSize: TYPOGRAPHY.textNote.fontSize,
-                fontFamily: TYPOGRAPHY.fontFamily,
-                color: COLORS.text,
-                fontWeight: 500,
-              }}
-            >
-              {field.label}
-            </label>
-            <input
-              type={field.type}
-              placeholder={field.placeholder}
-              style={{
-                width: '100%',
-                padding: '10px 14px',
-                border: `1px solid ${COLORS.border}`,
-                borderRadius: '8px',
-                fontSize: TYPOGRAPHY.textImportant.fontSize,
-                fontFamily: TYPOGRAPHY.fontFamily,
-                boxSizing: 'border-box',
-              }}
-            />
-          </div>
-        ))}
-
-        {[
-          { label: 'Employment Status', options: employmentStatuses },
-          { label: 'Include', options: includeOptions },
-        ].map((field) => (
-          <div key={field.label} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <label
-              style={{
-                fontSize: TYPOGRAPHY.textNote.fontSize,
-                fontFamily: TYPOGRAPHY.fontFamily,
-                color: COLORS.text,
-                fontWeight: 500,
-              }}
-            >
-              {field.label}
-            </label>
-            <select
-              style={{
-                width: '100%',
-                padding: '10px 14px',
-                border: `1px solid ${COLORS.border}`,
-                borderRadius: '8px',
-                fontSize: TYPOGRAPHY.textImportant.fontSize,
-                fontFamily: TYPOGRAPHY.fontFamily,
-                backgroundColor: COLORS.white,
-              }}
-            >
-              <option value="">-- Select --</option>
-              {field.options.map((option) => (
-                <option key={option}>{option}</option>
-              ))}
-            </select>
-          </div>
-        ))}
-
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '20px' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          <label
-            style={{
-              fontSize: TYPOGRAPHY.textNote.fontSize,
-              fontFamily: TYPOGRAPHY.fontFamily,
-              color: COLORS.text,
-              fontWeight: 500,
-            }}
-          >
-            Supervisor Name
-          </label>
+          <label style={{ fontSize: TYPOGRAPHY.textNote.fontSize, fontFamily: TYPOGRAPHY.fontFamily, fontWeight: 500, color: COLORS.text }}>Employee Name</label>
           <input
             type="text"
+            value={filters.employeeName}
+            onChange={(e) => handleFilterChange('employeeName', e.target.value)}
             placeholder="Type for hints..."
             style={{
               width: '100%',
@@ -201,44 +292,191 @@ const Employees: React.FC = () => {
             }}
           />
         </div>
-
-        {[
-          { label: 'Job Title', options: jobTitles },
-          { label: 'Sub Unit', options: subUnits },
-        ].map((field) => (
-          <div key={field.label} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <label
-              style={{
-                fontSize: TYPOGRAPHY.textNote.fontSize,
-                fontFamily: TYPOGRAPHY.fontFamily,
-                color: COLORS.text,
-                fontWeight: 500,
-              }}
-            >
-              {field.label}
-            </label>
-            <select
-              style={{
-                width: '100%',
-                padding: '10px 14px',
-                border: `1px solid ${COLORS.border}`,
-                borderRadius: '8px',
-                fontSize: TYPOGRAPHY.textImportant.fontSize,
-                fontFamily: TYPOGRAPHY.fontFamily,
-                backgroundColor: COLORS.white,
-              }}
-            >
-              <option value="">-- Select --</option>
-              {field.options.map((option) => (
-                <option key={option}>{option}</option>
-              ))}
-            </select>
-          </div>
-        ))}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <label
+            style={{
+              fontSize: TYPOGRAPHY.textNote.fontSize,
+              fontFamily: TYPOGRAPHY.fontFamily,
+              fontWeight: 500,
+              color: COLORS.text,
+            }}
+          >
+            Employee ID
+          </label>
+          <input
+            type="text"
+            value={filters.employeeId}
+            onChange={(e) => handleFilterChange('employeeId', e.target.value)}
+            style={{
+              width: '100%',
+              padding: '10px 14px',
+              border: `1px solid ${COLORS.border}`,
+              borderRadius: '8px',
+              fontSize: TYPOGRAPHY.textImportant.fontSize,
+              fontFamily: TYPOGRAPHY.fontFamily,
+              boxSizing: 'border-box',
+            }}
+          />
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <label
+            style={{
+              fontSize: TYPOGRAPHY.textNote.fontSize,
+              fontFamily: TYPOGRAPHY.fontFamily,
+              fontWeight: 500,
+              color: COLORS.text,
+            }}
+          >
+            Employment Status
+          </label>
+          <select
+            value={filters.employmentStatus}
+            onChange={(e) => handleFilterChange('employmentStatus', e.target.value)}
+            style={{
+              width: '100%',
+              padding: '10px 14px',
+              border: `1px solid ${COLORS.border}`,
+              borderRadius: '8px',
+              fontSize: TYPOGRAPHY.textImportant.fontSize,
+              fontFamily: TYPOGRAPHY.fontFamily,
+              backgroundColor: COLORS.white,
+            }}
+          >
+            <option value="">-- Select --</option>
+            {employmentStatuses.map((status) => (
+              <option key={status} value={status}>
+                {status}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <label
+            style={{
+              fontSize: TYPOGRAPHY.textNote.fontSize,
+              fontFamily: TYPOGRAPHY.fontFamily,
+              fontWeight: 500,
+              color: COLORS.text,
+            }}
+          >
+            Include
+          </label>
+          <select
+            value={filters.include}
+            onChange={(e) => handleFilterChange('include', e.target.value)}
+            style={{
+              width: '100%',
+              padding: '10px 14px',
+              border: `1px solid ${COLORS.border}`,
+              borderRadius: '8px',
+              fontSize: TYPOGRAPHY.textImportant.fontSize,
+              fontFamily: TYPOGRAPHY.fontFamily,
+              backgroundColor: COLORS.white,
+            }}
+          >
+            {includeOptions.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <label
+            style={{
+              fontSize: TYPOGRAPHY.textNote.fontSize,
+              fontFamily: TYPOGRAPHY.fontFamily,
+              fontWeight: 500,
+              color: COLORS.text,
+            }}
+          >
+            Supervisor Name
+          </label>
+          <input
+            type="text"
+            value={filters.supervisor}
+            onChange={(e) => handleFilterChange('supervisor', e.target.value)}
+            placeholder="Type for hints..."
+            style={{
+              width: '100%',
+              padding: '10px 14px',
+              border: `1px solid ${COLORS.border}`,
+              borderRadius: '8px',
+              fontSize: TYPOGRAPHY.textImportant.fontSize,
+              fontFamily: TYPOGRAPHY.fontFamily,
+              boxSizing: 'border-box',
+            }}
+          />
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <label
+            style={{
+              fontSize: TYPOGRAPHY.textNote.fontSize,
+              fontFamily: TYPOGRAPHY.fontFamily,
+              fontWeight: 500,
+              color: COLORS.text,
+            }}
+          >
+            Job Title
+          </label>
+          <select
+            value={filters.jobTitle}
+            onChange={(e) => handleFilterChange('jobTitle', e.target.value)}
+            style={{
+              width: '100%',
+              padding: '10px 14px',
+              border: `1px solid ${COLORS.border}`,
+              borderRadius: '8px',
+              fontSize: TYPOGRAPHY.textImportant.fontSize,
+              fontFamily: TYPOGRAPHY.fontFamily,
+              backgroundColor: COLORS.white,
+            }}
+          >
+            <option value="">-- Select --</option>
+            {jobTitleOptions.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <label
+            style={{
+              fontSize: TYPOGRAPHY.textNote.fontSize,
+              fontFamily: TYPOGRAPHY.fontFamily,
+              fontWeight: 500,
+              color: COLORS.text,
+            }}
+          >
+            Sub Unit
+          </label>
+          <select
+            value={filters.subUnit}
+            onChange={(e) => handleFilterChange('subUnit', e.target.value)}
+            style={{
+              width: '100%',
+              padding: '10px 14px',
+              border: `1px solid ${COLORS.border}`,
+              borderRadius: '8px',
+              fontSize: TYPOGRAPHY.textImportant.fontSize,
+              fontFamily: TYPOGRAPHY.fontFamily,
+              backgroundColor: COLORS.white,
+            }}
+          >
+            <option value="">-- Select --</option>
+            {subUnits.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
         <button
+          onClick={resetFilters}
           style={{
             padding: '10px 24px',
             borderRadius: '24px',
@@ -253,6 +491,7 @@ const Employees: React.FC = () => {
           Reset
         </button>
         <button
+          onClick={handleSearch}
           style={{
             padding: '10px 24px',
             borderRadius: '24px',
@@ -292,6 +531,7 @@ const Employees: React.FC = () => {
           }}
         >
           <button
+            onClick={openAddForm}
             style={{
               padding: '10px 22px',
               backgroundColor: '#28a745',
@@ -313,7 +553,7 @@ const Employees: React.FC = () => {
               color: COLORS.textLight,
             }}
           >
-            ({employeeRows.length}) Records Found
+            ({employees.length}) Records Found
           </div>
         </div>
 
@@ -348,51 +588,69 @@ const Employees: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {employeeRows.map((emp) => (
-                <tr
-                  key={emp.id}
-                  style={{
-                    borderBottom: `1px solid ${COLORS.border}`,
-                    transition: 'background-color 0.2s',
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = COLORS.lightBg)}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-                >
-                  <td style={{ padding: '12px 16px' }}>{emp.id}</td>
-                  <td style={{ padding: '12px 16px' }}>{emp.name}</td>
-                  <td style={{ padding: '12px 16px' }}>{emp.lastName}</td>
-                  <td style={{ padding: '12px 16px' }}>{emp.jobTitle}</td>
-                  <td style={{ padding: '12px 16px' }}>{emp.status}</td>
-                  <td style={{ padding: '12px 16px' }}>{emp.subUnit}</td>
-                  <td style={{ padding: '12px 16px' }}>{emp.supervisor}</td>
-                  <td style={{ padding: '12px 16px' }}>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <button
-                        style={{
-                          border: 'none',
-                          background: 'none',
-                          fontSize: '18px',
-                          cursor: 'pointer',
-                          color: COLORS.primary,
-                        }}
-                      >
-                        ✏️
-                      </button>
-                      <button
-                        style={{
-                          border: 'none',
-                          background: 'none',
-                          fontSize: '18px',
-                          cursor: 'pointer',
-                          color: '#dc3545',
-                        }}
-                      >
-                        🗑️
-                      </button>
-                    </div>
+              {loading ? (
+                <tr>
+                  <td colSpan={8} style={{ padding: '16px', textAlign: 'center', color: COLORS.textLight }}>
+                    Loading employees...
                   </td>
                 </tr>
-              ))}
+              ) : employees.length === 0 ? (
+                <tr>
+                  <td colSpan={8} style={{ padding: '16px', textAlign: 'center', color: COLORS.textLight }}>
+                    No employee records found.
+                  </td>
+                </tr>
+              ) : (
+                formattedEmployees.map((emp) => (
+                  <tr
+                    key={emp.id}
+                    style={{
+                      borderBottom: `1px solid ${COLORS.border}`,
+                      transition: 'background-color 0.2s',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = COLORS.lightBg)}
+                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                  >
+                    <td style={{ padding: '12px 16px' }}>{emp.employee_id}</td>
+                    <td style={{ padding: '12px 16px' }}>{emp.fullName}</td>
+                    <td style={{ padding: '12px 16px' }}>{emp.last_name}</td>
+                    <td style={{ padding: '12px 16px' }}>{emp.job_title || '—'}</td>
+                    <td style={{ padding: '12px 16px' }}>{emp.employment_status || '—'}</td>
+                    <td style={{ padding: '12px 16px' }}>{emp.sub_unit || '—'}</td>
+                    <td style={{ padding: '12px 16px' }}>{emp.supervisor_name || '—'}</td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button
+                          onClick={() => handleEdit(emp)}
+                          style={{
+                            border: 'none',
+                            background: 'none',
+                            fontSize: '18px',
+                            cursor: 'pointer',
+                            color: COLORS.primary,
+                          }}
+                          title="Edit employee"
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          onClick={() => handleDelete(emp)}
+                          style={{
+                            border: 'none',
+                            background: 'none',
+                            fontSize: '18px',
+                            cursor: 'pointer',
+                            color: '#dc3545',
+                          }}
+                          title="Delete employee"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -410,17 +668,22 @@ const Employees: React.FC = () => {
         boxShadow: '0 2px 6px rgba(0,0,0,0.05)',
       }}
     >
-      <h3
-        style={{
-          fontFamily: TYPOGRAPHY.fontFamily,
-          fontSize: TYPOGRAPHY.textImportant.fontSize,
-          fontWeight: 600,
-          margin: '0 0 20px',
-          color: COLORS.text,
-        }}
-      >
-        Add Employee
-      </h3>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <h3
+          style={{
+            fontFamily: TYPOGRAPHY.fontFamily,
+            fontSize: TYPOGRAPHY.textImportant.fontSize,
+            fontWeight: 600,
+            margin: '0',
+            color: COLORS.text,
+          }}
+        >
+          {editingEmployee ? 'Edit Employee' : 'Add Employee'}
+        </h3>
+        {error && (
+          <div style={{ backgroundColor: '#fdecea', color: '#b71c1c', borderRadius: '6px', padding: '8px 12px', fontFamily: TYPOGRAPHY.fontFamily }}>{error}</div>
+        )}
+      </div>
 
       <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
         <div style={{ flexShrink: 0, textAlign: 'center' }}>
@@ -484,58 +747,274 @@ const Employees: React.FC = () => {
               marginBottom: '16px',
             }}
           >
-            {['First Name', 'Middle Name', 'Last Name'].map((label) => (
-              <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label
-                  style={{
-                    fontSize: TYPOGRAPHY.textNote.fontSize,
-                    fontFamily: TYPOGRAPHY.fontFamily,
-                    fontWeight: 500,
-                    color: COLORS.text,
-                  }}
-                >
-                  {label}
-                </label>
-                <input
-                  type="text"
-                  style={{
-                    width: '100%',
-                    padding: '10px 14px',
-                    border: `1px solid ${COLORS.border}`,
-                    borderRadius: '8px',
-                    fontSize: TYPOGRAPHY.textImportant.fontSize,
-                    fontFamily: TYPOGRAPHY.fontFamily,
-                    boxSizing: 'border-box',
-                  }}
-                />
-              </div>
-            ))}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: TYPOGRAPHY.textNote.fontSize, fontFamily: TYPOGRAPHY.fontFamily, fontWeight: 500, color: COLORS.text }}>First Name*</label>
+              <input
+                type="text"
+                value={employeeForm.firstName}
+                onChange={(e) => handleFormChange('firstName', e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '10px 14px',
+                  border: `1px solid ${COLORS.border}`,
+                  borderRadius: '8px',
+                  fontSize: TYPOGRAPHY.textImportant.fontSize,
+                  fontFamily: TYPOGRAPHY.fontFamily,
+                  boxSizing: 'border-box',
+                }}
+              />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: TYPOGRAPHY.textNote.fontSize, fontFamily: TYPOGRAPHY.fontFamily, fontWeight: 500, color: COLORS.text }}>Middle Name</label>
+              <input
+                type="text"
+                value={employeeForm.middleName}
+                onChange={(e) => handleFormChange('middleName', e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '10px 14px',
+                  border: `1px solid ${COLORS.border}`,
+                  borderRadius: '8px',
+                  fontSize: TYPOGRAPHY.textImportant.fontSize,
+                  fontFamily: TYPOGRAPHY.fontFamily,
+                  boxSizing: 'border-box',
+                }}
+              />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: TYPOGRAPHY.textNote.fontSize, fontFamily: TYPOGRAPHY.fontFamily, fontWeight: 500, color: COLORS.text }}>Last Name*</label>
+              <input
+                type="text"
+                value={employeeForm.lastName}
+                onChange={(e) => handleFormChange('lastName', e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '10px 14px',
+                  border: `1px solid ${COLORS.border}`,
+                  borderRadius: '8px',
+                  fontSize: TYPOGRAPHY.textImportant.fontSize,
+                  fontFamily: TYPOGRAPHY.fontFamily,
+                  boxSizing: 'border-box',
+                }}
+              />
+            </div>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '16px' }}>
-            <label
-              style={{
-                fontSize: TYPOGRAPHY.textNote.fontSize,
-                fontFamily: TYPOGRAPHY.fontFamily,
-                fontWeight: 500,
-                color: COLORS.text,
-              }}
-            >
-              Employee ID
-            </label>
-            <input
-              type="text"
-              placeholder="0386"
-              style={{
-                width: '100%',
-                padding: '10px 14px',
-                border: `1px solid ${COLORS.border}`,
-                borderRadius: '8px',
-                fontSize: TYPOGRAPHY.textImportant.fontSize,
-                fontFamily: TYPOGRAPHY.fontFamily,
-                boxSizing: 'border-box',
-              }}
-            />
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+              gap: '16px',
+              marginBottom: '16px',
+            }}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: TYPOGRAPHY.textNote.fontSize, fontFamily: TYPOGRAPHY.fontFamily, fontWeight: 500, color: COLORS.text }}>Employee ID*</label>
+              <input
+                type="text"
+                value={employeeForm.employeeId}
+                onChange={(e) => handleFormChange('employeeId', e.target.value)}
+                readOnly={!!editingEmployee}
+                style={{
+                  width: '100%',
+                  padding: '10px 14px',
+                  border: `1px solid ${COLORS.border}`,
+                  borderRadius: '8px',
+                  fontSize: TYPOGRAPHY.textImportant.fontSize,
+                  fontFamily: TYPOGRAPHY.fontFamily,
+                  boxSizing: 'border-box',
+                  backgroundColor: editingEmployee ? COLORS.lightBg : COLORS.white,
+                }}
+              />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: TYPOGRAPHY.textNote.fontSize, fontFamily: TYPOGRAPHY.fontFamily, fontWeight: 500, color: COLORS.text }}>Email</label>
+              <input
+                type="email"
+                value={employeeForm.email}
+                onChange={(e) => handleFormChange('email', e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '10px 14px',
+                  border: `1px solid ${COLORS.border}`,
+                  borderRadius: '8px',
+                  fontSize: TYPOGRAPHY.textImportant.fontSize,
+                  fontFamily: TYPOGRAPHY.fontFamily,
+                  boxSizing: 'border-box',
+                }}
+              />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: TYPOGRAPHY.textNote.fontSize, fontFamily: TYPOGRAPHY.fontFamily, fontWeight: 500, color: COLORS.text }}>Phone</label>
+              <input
+                type="tel"
+                value={employeeForm.phone}
+                onChange={(e) => handleFormChange('phone', e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '10px 14px',
+                  border: `1px solid ${COLORS.border}`,
+                  borderRadius: '8px',
+                  fontSize: TYPOGRAPHY.textImportant.fontSize,
+                  fontFamily: TYPOGRAPHY.fontFamily,
+                  boxSizing: 'border-box',
+                }}
+              />
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+              gap: '16px',
+              marginBottom: '16px',
+            }}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: TYPOGRAPHY.textNote.fontSize, fontFamily: TYPOGRAPHY.fontFamily, fontWeight: 500, color: COLORS.text }}>Job Title</label>
+              <select
+                value={employeeForm.jobTitle}
+                onChange={(e) => handleFormChange('jobTitle', e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '10px 14px',
+                  border: `1px solid ${COLORS.border}`,
+                  borderRadius: '8px',
+                  fontSize: TYPOGRAPHY.textImportant.fontSize,
+                  fontFamily: TYPOGRAPHY.fontFamily,
+                  boxSizing: 'border-box',
+                  backgroundColor: COLORS.white,
+                }}
+              >
+                <option value="">-- Select --</option>
+                {jobTitleOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: TYPOGRAPHY.textNote.fontSize, fontFamily: TYPOGRAPHY.fontFamily, fontWeight: 500, color: COLORS.text }}>Employment Status</label>
+              <select
+                value={employeeForm.employmentStatus}
+                onChange={(e) => handleFormChange('employmentStatus', e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '10px 14px',
+                  border: `1px solid ${COLORS.border}`,
+                  borderRadius: '8px',
+                  fontSize: TYPOGRAPHY.textImportant.fontSize,
+                  fontFamily: TYPOGRAPHY.fontFamily,
+                  boxSizing: 'border-box',
+                  backgroundColor: COLORS.white,
+                }}
+              >
+                <option value="">-- Select --</option>
+                {employmentStatuses.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: TYPOGRAPHY.textNote.fontSize, fontFamily: TYPOGRAPHY.fontFamily, fontWeight: 500, color: COLORS.text }}>Sub Unit</label>
+              <select
+                value={employeeForm.subUnit}
+                onChange={(e) => handleFormChange('subUnit', e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '10px 14px',
+                  border: `1px solid ${COLORS.border}`,
+                  borderRadius: '8px',
+                  fontSize: TYPOGRAPHY.textImportant.fontSize,
+                  fontFamily: TYPOGRAPHY.fontFamily,
+                  boxSizing: 'border-box',
+                  backgroundColor: COLORS.white,
+                }}
+              >
+                <option value="">-- Select --</option>
+                {subUnits.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+              gap: '16px',
+              marginBottom: '16px',
+            }}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: TYPOGRAPHY.textNote.fontSize, fontFamily: TYPOGRAPHY.fontFamily, fontWeight: 500, color: COLORS.text }}>Supervisor Name</label>
+              <select
+                value={employeeForm.supervisorName}
+                onChange={(e) => handleFormChange('supervisorName', e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '10px 14px',
+                  border: `1px solid ${COLORS.border}`,
+                  borderRadius: '8px',
+                  fontSize: TYPOGRAPHY.textImportant.fontSize,
+                  fontFamily: TYPOGRAPHY.fontFamily,
+                  boxSizing: 'border-box',
+                  backgroundColor: COLORS.white,
+                }}
+              >
+                <option value="">-- Select --</option>
+                {supervisorOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: TYPOGRAPHY.textNote.fontSize, fontFamily: TYPOGRAPHY.fontFamily, fontWeight: 500, color: COLORS.text }}>Hire Date</label>
+              <input
+                type="date"
+                value={employeeForm.hireDate}
+                onChange={(e) => handleFormChange('hireDate', e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '10px 14px',
+                  border: `1px solid ${COLORS.border}`,
+                  borderRadius: '8px',
+                  fontSize: TYPOGRAPHY.textImportant.fontSize,
+                  fontFamily: TYPOGRAPHY.fontFamily,
+                  boxSizing: 'border-box',
+                }}
+              />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: TYPOGRAPHY.textNote.fontSize, fontFamily: TYPOGRAPHY.fontFamily, fontWeight: 500, color: COLORS.text }}>Status</label>
+              <select
+                value={employeeForm.status}
+                onChange={(e) => handleFormChange('status', e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '10px 14px',
+                  border: `1px solid ${COLORS.border}`,
+                  borderRadius: '8px',
+                  fontSize: TYPOGRAPHY.textImportant.fontSize,
+                  fontFamily: TYPOGRAPHY.fontFamily,
+                  boxSizing: 'border-box',
+                  backgroundColor: COLORS.white,
+                }}
+              >
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+                <option value="terminated">Terminated</option>
+              </select>
+            </div>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
@@ -574,48 +1053,135 @@ const Employees: React.FC = () => {
               />
             </div>
           </div>
-
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-            <button
-              style={{
-                padding: '10px 24px',
-                borderRadius: '24px',
-                border: `1px solid ${COLORS.accent}`,
-                backgroundColor: COLORS.white,
-                color: COLORS.accent,
-                fontFamily: TYPOGRAPHY.fontFamily,
-                fontSize: TYPOGRAPHY.textImportant.fontSize,
-                cursor: 'pointer',
-              }}
-            >
-              Cancel
-            </button>
-            <button
-              style={{
-                padding: '10px 24px',
-                borderRadius: '24px',
-                border: 'none',
-                backgroundColor: COLORS.accent,
-                color: COLORS.white,
-                fontFamily: TYPOGRAPHY.fontFamily,
-                fontSize: TYPOGRAPHY.textImportant.fontSize,
-                cursor: 'pointer',
-              }}
-            >
-              Save
-            </button>
-          </div>
         </div>
       </div>
-      <div
+      <p
         style={{
-          marginTop: '8px',
-          fontFamily: TYPOGRAPHY.fontFamily,
           fontSize: TYPOGRAPHY.textNote.fontSize,
+          fontFamily: TYPOGRAPHY.fontFamily,
           color: COLORS.textLight,
+          margin: '0 0 20px 0',
+          alignSelf: 'flex-start',
         }}
       >
         * Required
+      </p>
+
+      {loginDetails && (
+        <div
+          style={{
+            marginTop: '20px',
+            paddingTop: '20px',
+            borderTop: `1px solid ${COLORS.border}`,
+          }}
+        >
+          <h4
+            style={{
+              fontFamily: TYPOGRAPHY.fontFamily,
+              fontSize: TYPOGRAPHY.textImportant.fontSize,
+              fontWeight: 600,
+              margin: '0 0 12px',
+              color: COLORS.text,
+            }}
+          >
+            Login Details
+          </h4>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+              gap: '16px',
+              marginBottom: '16px',
+            }}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: TYPOGRAPHY.textNote.fontSize, fontFamily: TYPOGRAPHY.fontFamily, fontWeight: 500, color: COLORS.text }}>Username</label>
+              <input
+                type="text"
+                style={{
+                  width: '100%',
+                  padding: '10px 14px',
+                  border: `1px solid ${COLORS.border}`,
+                  borderRadius: '8px',
+                  fontSize: TYPOGRAPHY.textImportant.fontSize,
+                  fontFamily: TYPOGRAPHY.fontFamily,
+                  boxSizing: 'border-box',
+                }}
+              />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: TYPOGRAPHY.textNote.fontSize, fontFamily: TYPOGRAPHY.fontFamily, fontWeight: 500, color: COLORS.text }}>Password</label>
+              <input
+                type="password"
+                style={{
+                  width: '100%',
+                  padding: '10px 14px',
+                  border: `1px solid ${COLORS.border}`,
+                  borderRadius: '8px',
+                  fontSize: TYPOGRAPHY.textImportant.fontSize,
+                  fontFamily: TYPOGRAPHY.fontFamily,
+                  boxSizing: 'border-box',
+                }}
+              />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: TYPOGRAPHY.textNote.fontSize, fontFamily: TYPOGRAPHY.fontFamily, fontWeight: 500, color: COLORS.text }}>Confirm Password</label>
+              <input
+                type="password"
+                style={{
+                  width: '100%',
+                  padding: '10px 14px',
+                  border: `1px solid ${COLORS.border}`,
+                  borderRadius: '8px',
+                  fontSize: TYPOGRAPHY.textImportant.fontSize,
+                  fontFamily: TYPOGRAPHY.fontFamily,
+                  boxSizing: 'border-box',
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '24px' }}>
+        <button
+          onClick={() => {
+            setEmployeeForm({ ...defaultForm });
+            setEditingEmployee(null);
+            setLoginDetails(false);
+            setError(null);
+            setActiveTab('list');
+          }}
+          style={{
+            padding: '10px 24px',
+            borderRadius: '24px',
+            border: `1px solid ${COLORS.accent}`,
+            backgroundColor: COLORS.white,
+            color: COLORS.accent,
+            fontFamily: TYPOGRAPHY.fontFamily,
+            fontSize: TYPOGRAPHY.textImportant.fontSize,
+            cursor: 'pointer',
+          }}
+        >
+          Cancel
+        </button>
+        <button
+          onClick={handleSaveEmployee}
+          disabled={isSaving}
+          style={{
+            padding: '10px 24px',
+            borderRadius: '24px',
+            border: 'none',
+            backgroundColor: isSaving ? COLORS.textLight : COLORS.accent,
+            color: COLORS.white,
+            fontFamily: TYPOGRAPHY.fontFamily,
+            fontSize: TYPOGRAPHY.textImportant.fontSize,
+            cursor: isSaving ? 'not-allowed' : 'pointer',
+          }}
+        >
+          {isSaving ? 'Saving...' : 'Save'}
+        </button>
       </div>
     </div>
   );
@@ -683,35 +1249,19 @@ const Employees: React.FC = () => {
             cursor: 'pointer',
           }}
         >
-          Search
+          + Add
         </button>
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-        <button
-          style={{
-            padding: '10px 22px',
-            backgroundColor: '#28a745',
-            color: COLORS.white,
-            border: 'none',
-            borderRadius: '24px',
-            fontFamily: TYPOGRAPHY.fontFamily,
-            fontSize: TYPOGRAPHY.textImportant.fontSize,
-            fontWeight: 500,
-            cursor: 'pointer',
-          }}
-        >
-          + Add
-        </button>
-        <div
-          style={{
-            fontFamily: TYPOGRAPHY.fontFamily,
-            fontSize: TYPOGRAPHY.textImportant.fontSize,
-            color: COLORS.textLight,
-          }}
-        >
-          ({reportRows.length}) Records Found
-        </div>
+      <div
+        style={{
+          fontFamily: TYPOGRAPHY.fontFamily,
+          fontSize: TYPOGRAPHY.textImportant.fontSize,
+          color: COLORS.textLight,
+          marginBottom: '16px',
+        }}
+      >
+        ({reportRows.length}) Records Found
       </div>
 
       <div style={{ overflowX: 'auto' }}>
@@ -729,14 +1279,33 @@ const Employees: React.FC = () => {
                 borderBottom: `2px solid ${COLORS.border}`,
               }}
             >
-              <th style={{ textAlign: 'left', padding: '12px 16px' }}>Name</th>
-              <th style={{ textAlign: 'left', padding: '12px 16px' }}>Actions</th>
+              <th
+                style={{
+                  textAlign: 'left',
+                  padding: '12px 16px',
+                  fontSize: TYPOGRAPHY.textImportant.fontSize,
+                  color: COLORS.text,
+                }}
+              >
+                <input type="checkbox" style={{ marginRight: '8px' }} />
+                Name
+              </th>
+              <th
+                style={{
+                  textAlign: 'left',
+                  padding: '12px 16px',
+                  fontSize: TYPOGRAPHY.textImportant.fontSize,
+                  color: COLORS.text,
+                }}
+              >
+                Actions
+              </th>
             </tr>
           </thead>
           <tbody>
-            {reportRows.map((report) => (
+            {reportRows.map((report, idx) => (
               <tr
-                key={report}
+                key={idx}
                 style={{
                   borderBottom: `1px solid ${COLORS.border}`,
                   transition: 'background-color 0.2s',
@@ -744,15 +1313,18 @@ const Employees: React.FC = () => {
                 onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = COLORS.lightBg)}
                 onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
               >
-                <td style={{ padding: '12px 16px' }}>{report}</td>
+                <td style={{ padding: '12px 16px' }}>
+                  <input type="checkbox" style={{ marginRight: '8px' }} />
+                  {report}
+                </td>
                 <td style={{ padding: '12px 16px' }}>
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <button
                       style={{
                         border: 'none',
                         background: 'none',
-                        cursor: 'pointer',
                         fontSize: '18px',
+                        cursor: 'pointer',
                         color: COLORS.primary,
                       }}
                     >
@@ -762,8 +1334,8 @@ const Employees: React.FC = () => {
                       style={{
                         border: 'none',
                         background: 'none',
-                        cursor: 'pointer',
                         fontSize: '18px',
+                        cursor: 'pointer',
                         color: '#dc3545',
                       }}
                     >
@@ -773,8 +1345,8 @@ const Employees: React.FC = () => {
                       style={{
                         border: 'none',
                         background: 'none',
-                        cursor: 'pointer',
                         fontSize: '18px',
+                        cursor: 'pointer',
                         color: COLORS.textLight,
                       }}
                     >
@@ -818,33 +1390,33 @@ const Employees: React.FC = () => {
         ← Back to Dashboard
       </button>
 
-      <div
+      <h1
         style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '12px',
-          marginBottom: '24px',
-          position: 'relative',
+          color: COLORS.primary,
+          marginBottom: '16px',
+          marginTop: 0,
+          fontSize: TYPOGRAPHY.heading.fontSize,
+          fontFamily: TYPOGRAPHY.fontFamily,
+          fontWeight: TYPOGRAPHY.heading.fontWeight,
         }}
       >
-        {['configuration', 'list', 'add', 'reports'].map((tab) => {
-          const labelMap: Record<string, string> = {
-            configuration: 'Configuration',
-            list: 'Employee List',
-            add: 'Add Employee',
-            reports: 'Reports',
-          };
-          const isActive = activeTab === tab;
+        PIM
+      </h1>
+
+      <div style={{ display: 'flex', gap: '12px', marginBottom: '24px', flexWrap: 'wrap' }}>
+        {([
+          { key: 'configuration', label: 'Configuration', menuKey: 'configMenu', items: configurationOptions },
+          { key: 'list', label: 'Employee List' },
+          { key: 'add', label: 'Add Employee' },
+          { key: 'reports', label: 'Reports', menuKey: 'reportsMenu', items: ['PIM Reports', 'Employee Reports'] },
+        ] as const).map((tab) => {
+          const isActive = activeTab === tab.key;
+          const isMenuOpen = activeTab === tab.key && !!tab.menuKey;
           return (
-            <div key={tab} style={{ position: 'relative' }}>
+            <div key={tab.key} style={{ position: 'relative' }}>
               <button
                 onClick={() => {
-                  if (tab === 'configuration') {
-                    setShowConfigMenu(!showConfigMenu);
-                  } else {
-                    setShowConfigMenu(false);
-                    setActiveTab(tab as typeof activeTab);
-                  }
+                  setActiveTab(tab.key);
                 }}
                 style={{
                   padding: '10px 18px',
@@ -856,15 +1428,19 @@ const Employees: React.FC = () => {
                   fontSize: TYPOGRAPHY.textImportant.fontSize,
                   cursor: 'pointer',
                   boxShadow: isActive ? '0 2px 6px rgba(0,0,0,0.15)' : 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
                 }}
               >
-                {labelMap[tab]}
+                {tab.label}
+                {tab.menuKey && <span style={{ fontSize: '10px' }}>▼</span>}
               </button>
-              {tab === 'configuration' && showConfigMenu && (
+              {isMenuOpen && tab.items && (
                 <div
                   style={{
                     position: 'absolute',
-                    top: '48px',
+                    top: '44px',
                     left: 0,
                     backgroundColor: COLORS.white,
                     borderRadius: '8px',
@@ -875,19 +1451,19 @@ const Employees: React.FC = () => {
                     zIndex: 10,
                   }}
                 >
-                  {configurationOptions.map((option) => (
+                  {tab.items.map((item) => (
                     <div
-                      key={option}
+                      key={item}
                       style={{
-                        padding: '10px 16px',
+                        padding: '8px 14px',
                         fontFamily: TYPOGRAPHY.fontFamily,
                         fontSize: TYPOGRAPHY.textImportant.fontSize,
                         color: COLORS.text,
                         cursor: 'pointer',
                       }}
-                      onClick={() => setShowConfigMenu(false)}
+                      onClick={() => setActiveTab(tab.key)}
                     >
-                      {option}
+                      {item}
                     </div>
                   ))}
                 </div>
@@ -910,11 +1486,11 @@ const Employees: React.FC = () => {
             textAlign: 'center',
             boxShadow: '0 2px 6px rgba(0,0,0,0.05)',
             fontFamily: TYPOGRAPHY.fontFamily,
-            color: COLORS.text,
+            color: COLORS.textLight,
             fontSize: TYPOGRAPHY.textImportant.fontSize,
           }}
         >
-          Select a configuration option from the dropdown above.
+          This tab is a placeholder. The detailed functionality for Configuration can be added next.
         </div>
       )}
     </div>
@@ -922,4 +1498,5 @@ const Employees: React.FC = () => {
 };
 
 export default Employees;
+
 

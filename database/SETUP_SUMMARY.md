@@ -60,7 +60,7 @@ psql -U postgres -d arithwsie_hrms -f database/complete_schema_postgresql.sql
 
 ### 2.1 Apply Latest Migrations (if upgrading)
 ```bash
-psql -U postgres -d arithwsie_hrms -f database/migrations/2025-02-12-add-employee-attributes.sql
+psql -U postgres -d arithwsie_hrms -f database/migrations/2025-02-12-employee-attributes.sql
 ```
 
 ### 3. Verify Setup

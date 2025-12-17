@@ -3,7 +3,133 @@
  * Copyright (C) 2024 Arithwise Inc.
  */
 
-require('dotenv').config();
+// Load environment variables - EXPLICIT PATH
+const path = require('path');
+const fs = require('fs');
+
+// Force dotenv to load from the server directory
+const envPath = path.join(__dirname, '.env');
+const dotenvResult = require('dotenv').config({ path: envPath });
+
+// Check if .env file exists and was loaded
+if (dotenvResult.error) {
+  console.error('❌ ERROR loading .env file:', dotenvResult.error.message);
+  console.error('   File path:', envPath);
+  if (!fs.existsSync(envPath)) {
+    console.error('   File does not exist!');
+    console.error('   Creating template .env file...');
+    const template = `DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=arithwise_hrms
+DB_USER=bhushan
+DB_PASS=
+BACKEND_PORT=3001
+FRONTEND_URL=http://localhost:8080
+`;
+    fs.writeFileSync(envPath, template, 'utf8');
+    console.error('   ✅ Created .env template - PLEASE EDIT IT AND SET DB_PASS!');
+    process.exit(1);
+  }
+} else {
+  console.log('✅ .env file loaded from:', envPath);
+  
+  // Debug: Manually read and parse .env file to see what's actually in it
+  if (fs.existsSync(envPath)) {
+    const envContent = fs.readFileSync(envPath, 'utf8');
+    const lines = envContent.split('\n');
+    console.log('🔍 Debugging .env file contents:');
+    lines.forEach((line, index) => {
+      const trimmed = line.trim();
+      if (trimmed && !trimmed.startsWith('#')) {
+        if (trimmed.startsWith('DB_')) {
+          const parts = trimmed.split('=');
+          if (parts.length >= 2) {
+            const key = parts[0].trim();
+            const value = parts.slice(1).join('=').trim();
+            if (key === 'DB_PASS' || key === 'DB_PASSWORD') {
+              console.log(`   Line ${index + 1}: ${key}=${value ? '*** (' + value.length + ' chars)' : 'EMPTY'}`);
+            } else {
+              console.log(`   Line ${index + 1}: ${key}=${value}`);
+            }
+          }
+        }
+      }
+    });
+  }
+}
+
+// Verify critical variables are loaded
+const dbVars = {
+  DB_HOST: process.env.DB_HOST,
+  DB_PORT: process.env.DB_PORT,
+  DB_NAME: process.env.DB_NAME,
+  DB_USER: process.env.DB_USER,
+  DB_PASS: process.env.DB_PASS,
+  DB_PASSWORD: process.env.DB_PASSWORD
+};
+
+console.log('📋 Environment variables status:');
+console.log(`   DB_HOST: ${dbVars.DB_HOST || '✗ MISSING'}`);
+console.log(`   DB_PORT: ${dbVars.DB_PORT || '✗ MISSING'}`);
+console.log(`   DB_NAME: ${dbVars.DB_NAME || '✗ MISSING'}`);
+console.log(`   DB_USER: ${dbVars.DB_USER || '✗ MISSING'}`);
+const passwordSet = !!(dbVars.DB_PASS || dbVars.DB_PASSWORD);
+const passwordValue = dbVars.DB_PASS || dbVars.DB_PASSWORD || '';
+console.log(`   DB_PASS: ${passwordSet ? `✓ Set (${passwordValue.length} chars)` : '✗ MISSING OR EMPTY'}`);
+
+// If password is missing, try to manually read from .env file
+if (!passwordSet || !passwordValue.trim()) {
+  console.error('');
+  console.error('❌ CRITICAL: DB_PASS is not set or is empty!');
+  
+  // Try to manually read and fix
+  if (fs.existsSync(envPath)) {
+    console.error('   Attempting to read .env file directly...');
+    const envContent = fs.readFileSync(envPath, 'utf8');
+    const dbPassMatch = envContent.match(/^DB_PASS\s*=\s*(.+)$/m);
+    if (dbPassMatch) {
+      const foundPassword = dbPassMatch[1].trim();
+      if (foundPassword) {
+        console.error('   ⚠️  Found DB_PASS in file but dotenv didn\'t load it!');
+        console.error('   Password value length:', foundPassword.length);
+        console.error('   Password starts with:', foundPassword.substring(0, 2));
+        console.error('   Password ends with:', foundPassword.substring(foundPassword.length - 2));
+        console.error('   This might be a dotenv parsing issue.');
+        console.error('');
+        // Try to set it manually as a workaround
+        // Also try decoding URL encoding
+        let decodedPassword = foundPassword;
+        try {
+          decodedPassword = decodeURIComponent(foundPassword);
+          if (decodedPassword !== foundPassword) {
+            console.error('   🔧 Decoded URL-encoded password (e.g., %40 -> @)');
+          }
+        } catch (e) {
+          // Not URL encoded, use as-is
+        }
+        process.env.DB_PASS = decodedPassword;
+        console.error('   ✅ Manually set DB_PASS from file content');
+      } else {
+        console.error('   ❌ DB_PASS is in file but value is EMPTY');
+        console.error('   Edit .env and set: DB_PASS=qa%401234');
+      }
+    } else {
+      console.error('   ❌ DB_PASS line not found in .env file');
+      console.error('   Add this line to your .env file:');
+      console.error('   DB_PASS=qa%401234');
+    }
+  } else {
+    console.error('   Edit the .env file at:', envPath);
+    console.error('   Set DB_PASS=qa%401234');
+  }
+  
+  // Only exit if we couldn't fix it
+  if (!process.env.DB_PASS || !process.env.DB_PASS.trim()) {
+    console.error('   Then restart the server.');
+    process.exit(1);
+  }
+}
+
 const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
@@ -16,25 +142,151 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Database connection
-const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
-  port: process.env.DB_PORT || 5432,
-  database: process.env.DB_NAME || 'arithwsie_hrms',
-  user: process.env.DB_USER || 'bhushan',
-  password: process.env.DB_PASSWORD || '',
-  // Set search_path to use hrms_data schema
-  options: '-c search_path=hrms_data,public'
-});
+// Validate and prepare database configuration
+// Support both DB_PASS and DB_PASSWORD for compatibility
+let dbPassword = process.env.DB_PASS || process.env.DB_PASSWORD || '';
 
-// Test database connection
-pool.on('connect', () => {
-  console.log('✅ Connected to PostgreSQL database');
-});
+// Handle password - ensure it's a proper string
+if (dbPassword) {
+  dbPassword = String(dbPassword).trim();
+  // Remove surrounding quotes if present
+  if ((dbPassword.startsWith('"') && dbPassword.endsWith('"')) ||
+      (dbPassword.startsWith("'") && dbPassword.endsWith("'"))) {
+    dbPassword = dbPassword.slice(1, -1).trim();
+  }
+  // Decode URL encoding (e.g., %40 becomes @)
+  // This handles cases where password contains @ symbol encoded as %40
+  try {
+    const decoded = decodeURIComponent(dbPassword);
+    if (decoded !== dbPassword) {
+      console.log('   🔧 Decoded URL-encoded password (%40 -> @)');
+    }
+    dbPassword = decoded;
+  } catch (e) {
+    // If decoding fails, use original (might not be URL encoded)
+    // This is fine - just means password doesn't contain URL-encoded characters
+    console.log('   ℹ️  Password is not URL-encoded, using as-is');
+  }
+}
+
+const validatedPassword = dbPassword || '';
+
+const dbConfig = {
+  user: process.env.DB_USER || 'bhushan',
+  password: validatedPassword,  // Use validated password
+  host: process.env.DB_HOST || 'localhost',
+  port: parseInt(process.env.DB_PORT || '5432', 10),
+  database: process.env.DB_NAME || 'arithwise_hrms'  // Updated to match your database
+};
+
+// Debug: Show configuration (without showing password)
+console.log('📋 Database Configuration:');
+console.log(`   Host: ${dbConfig.host}`);
+console.log(`   Port: ${dbConfig.port}`);
+console.log(`   Database: ${dbConfig.database}`);
+console.log(`   User: ${dbConfig.user}`);
+console.log(`   Password: ${dbConfig.password ? '*** Set (' + dbConfig.password.length + ' chars)' : '❌ NOT SET'}`);
+console.log(`   Password type: ${typeof dbConfig.password}`);
+if (dbConfig.password) {
+  // Show first and last character to verify it's being read correctly
+  const firstChar = dbConfig.password[0];
+  const lastChar = dbConfig.password[dbConfig.password.length - 1];
+  console.log(`   Password starts with: '${firstChar}', ends with: '${lastChar}'`);
+}
+
+// Check if critical env vars are missing
+const missingVars = [];
+if (!process.env.DB_PASS && !process.env.DB_PASSWORD) {
+  missingVars.push('DB_PASS or DB_PASSWORD');
+}
+if (!process.env.DB_USER) {
+  missingVars.push('DB_USER');
+}
+if (!process.env.DB_NAME) {
+  missingVars.push('DB_NAME');
+}
+
+if (missingVars.length > 0) {
+  console.warn('⚠️  Warning: Missing environment variables:', missingVars.join(', '));
+  console.warn('   Create a .env file in orangehrm/src/server/ with these variables');
+  console.warn('   Using defaults where available');
+}
+
+// Database connection
+const pool = new Pool(dbConfig);
 
 pool.on('error', (err) => {
   console.error('❌ Database connection error:', err);
 });
+
+// Override pool.query to automatically set search_path
+// Note: We need to use the original pool.query for the search_path setting
+// because we can't set it on a client that's already connected
+const originalQuery = pool.query.bind(pool);
+
+pool.query = async function(text, params) {
+  // Get a client from the pool
+  const client = await this.connect();
+  try {
+    // Set search_path for this connection session
+    await client.query('SET search_path TO hrms_data, public');
+    // Execute the actual query
+    const result = await client.query(text, params);
+    return result;
+  } catch (error) {
+    // Re-throw the error with more context
+    if (error.message.includes('password must be a string')) {
+      console.error('❌ Password error detected. Check your .env file:');
+      console.error('   - Make sure DB_PASS is set');
+      console.error('   - Make sure there are no spaces around the = sign');
+      console.error('   - Make sure the password value is not empty');
+    }
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+// Test database connection
+(async () => {
+  // Don't test if password is not set
+  if (!validatedPassword) {
+    console.error('⚠️  Skipping database connection test - password not set');
+    console.error('   Please set DB_PASS in your .env file and restart the server');
+    return;
+  }
+
+  try {
+    await pool.query('SELECT 1');
+    console.log('✅ Connected to PostgreSQL database (search_path: hrms_data)');
+    console.log(`   Database: ${dbConfig.database}@${dbConfig.host}:${dbConfig.port}`);
+  } catch (err) {
+    console.error('❌ Database connection test failed:', err.message);
+    if (err.message.includes('password must be a string')) {
+      console.error('');
+      console.error('🔧 PASSWORD ERROR FIX:');
+      console.error('   1. Open .env file in: orangehrm/src/server/.env');
+      console.error('   2. Make sure DB_PASS is set like this:');
+      console.error('      DB_PASS=your_actual_password');
+      console.error('   3. NO spaces around = sign');
+      console.error('   4. NO quotes needed (unless password has spaces)');
+      console.error('   5. Save the file and restart server');
+    } else {
+      console.error('   Configuration:', {
+        host: dbConfig.host,
+        port: dbConfig.port,
+        database: dbConfig.database,
+        user: dbConfig.user,
+        password_set: dbConfig.password ? `Yes (${dbConfig.password.length} chars)` : 'No'
+      });
+      console.error('   Make sure:');
+      console.error('   1. PostgreSQL is running');
+      console.error('   2. .env file exists in orangehrm/src/server/');
+      console.error('   3. DB_PASS is set in .env file');
+      console.error('   4. Database credentials are correct');
+    }
+  }
+})();
 
 const mapEmployeeRow = (row) => {
   const fullName = [row.first_name, row.middle_name, row.last_name]
@@ -60,7 +312,16 @@ app.get('/api/job-titles', async (req, res) => {
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching job titles:', error);
-    res.status(500).json({ error: 'Failed to fetch job titles' });
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      detail: error.detail
+    });
+    res.status(500).json({ 
+      error: 'Failed to fetch job titles',
+      message: error.message,
+      hint: 'Check if job_titles table exists in hrms_data schema'
+    });
   }
 });
 
@@ -118,7 +379,16 @@ app.get('/api/vacancies', async (req, res) => {
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching vacancies:', error);
-    res.status(500).json({ error: 'Failed to fetch vacancies' });
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      detail: error.detail
+    });
+    res.status(500).json({ 
+      error: 'Failed to fetch vacancies',
+      message: error.message,
+      hint: 'Check if vacancies table exists in hrms_data schema'
+    });
   }
 });
 
@@ -311,7 +581,16 @@ app.get('/api/candidates', async (req, res) => {
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching candidates:', error);
-    res.status(500).json({ error: 'Failed to fetch candidates' });
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      detail: error.detail
+    });
+    res.status(500).json({ 
+      error: 'Failed to fetch candidates',
+      message: error.message,
+      hint: 'Check if candidates table exists in hrms_data schema'
+    });
   }
 });
 
@@ -462,14 +741,14 @@ app.get('/api/employees', async (req, res) => {
         e.id,
         e.employee_id,
         e.first_name,
-        e.middle_name,
+        COALESCE(e.middle_name, '') as middle_name,
         e.last_name,
         e.email,
         e.phone,
         e.position AS job_title,
-        e.employment_status,
-        e.sub_unit,
-        e.supervisor_name,
+        COALESCE(e.employment_status, '') as employment_status,
+        COALESCE(e.sub_unit, '') as sub_unit,
+        COALESCE(e.supervisor_name, '') as supervisor_name,
         e.status,
         e.hire_date
       FROM employees e
@@ -487,8 +766,9 @@ app.get('/api/employees', async (req, res) => {
     }
 
     if (employeeName) {
+      // Handle employee name search - middle_name might not exist
       addFilter(
-        "(e.first_name || ' ' || COALESCE(e.middle_name || ' ', '') || e.last_name) ILIKE $$",
+        "(e.first_name || ' ' || COALESCE(NULLIF(e.middle_name, '') || ' ', '') || e.last_name) ILIKE $$",
         `%${employeeName}%`
       );
     }
@@ -524,7 +804,16 @@ app.get('/api/employees', async (req, res) => {
     res.json(result.rows.map(mapEmployeeRow));
   } catch (error) {
     console.error('Error fetching employees:', error);
-    res.status(500).json({ error: 'Failed to fetch employees' });
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      detail: error.detail
+    });
+    res.status(500).json({ 
+      error: 'Failed to fetch employees',
+      message: error.message,
+      hint: 'Check if employees table exists in hrms_data schema'
+    });
   }
 });
 
@@ -536,14 +825,14 @@ app.get('/api/employees/:id', async (req, res) => {
         e.id,
         e.employee_id,
         e.first_name,
-        e.middle_name,
+        COALESCE(e.middle_name, '') as middle_name,
         e.last_name,
         e.email,
         e.phone,
         e.position AS job_title,
-        e.employment_status,
-        e.sub_unit,
-        e.supervisor_name,
+        COALESCE(e.employment_status, '') as employment_status,
+        COALESCE(e.sub_unit, '') as sub_unit,
+        COALESCE(e.supervisor_name, '') as supervisor_name,
         e.status,
         e.hire_date
       FROM employees e
@@ -713,24 +1002,179 @@ app.delete('/api/employees/:id', async (req, res) => {
   }
 });
 
+// Root endpoint - show available API endpoints
+app.get('/', (req, res) => {
+  res.json({
+    message: 'Arithwise HRM Backend API',
+    version: '1.0.0',
+    endpoints: {
+      health: '/api/health',
+      diagnostic: '/api/diagnostic',
+      test: '/api/test',
+      jobTitles: '/api/job-titles',
+      vacancies: '/api/vacancies',
+      candidates: '/api/candidates',
+      employees: '/api/employees'
+    },
+    documentation: 'See README.md for full API documentation'
+  });
+});
+
 // Simple connectivity test endpoint
 app.get('/api/test', (req, res) => {
   res.json({ message: 'Backend connected successfully' });
 });
 
-// Health check endpoint
-app.get('/api/health', async (req, res) => {
+// Diagnostic endpoint to check database tables and data
+app.get('/api/diagnostic', async (req, res) => {
   try {
-    await pool.query('SELECT 1');
-    res.json({ status: 'ok', database: 'connected' });
+    const results = {
+      connection: false,
+      schema_exists: false,
+      tables: [],
+      table_counts: {},
+      search_path: null,
+      errors: []
+    };
+
+    // Test connection
+    try {
+      await pool.query('SELECT 1');
+      results.connection = true;
+    } catch (err) {
+      results.errors.push(`Connection failed: ${err.message}`);
+      return res.json(results);
+    }
+
+    // Check current search_path
+    try {
+      const pathResult = await pool.query('SHOW search_path');
+      results.search_path = pathResult.rows[0].search_path;
+    } catch (err) {
+      results.errors.push(`Could not get search_path: ${err.message}`);
+    }
+
+    // Check if schema exists
+    try {
+      const schemaResult = await pool.query(`
+        SELECT schema_name 
+        FROM information_schema.schemata 
+        WHERE schema_name = 'hrms_data'
+      `);
+      results.schema_exists = schemaResult.rows.length > 0;
+    } catch (err) {
+      results.errors.push(`Schema check failed: ${err.message}`);
+    }
+
+    // Get all tables in hrms_data schema
+    try {
+      const tablesResult = await pool.query(`
+        SELECT table_name 
+        FROM information_schema.tables 
+        WHERE table_schema = 'hrms_data'
+        ORDER BY table_name
+      `);
+      results.tables = tablesResult.rows.map(r => r.table_name);
+    } catch (err) {
+      results.errors.push(`Table listing failed: ${err.message}`);
+    }
+
+    // Get row counts for each table
+    for (const table of results.tables) {
+      try {
+        const countResult = await pool.query(`SELECT COUNT(*) as count FROM ${table}`);
+        results.table_counts[table] = parseInt(countResult.rows[0].count);
+      } catch (err) {
+        results.table_counts[table] = `Error: ${err.message}`;
+        results.errors.push(`Count failed for ${table}: ${err.message}`);
+      }
+    }
+
+    res.json(results);
   } catch (error) {
-    res.status(500).json({ status: 'error', database: 'disconnected', error: error.message });
+    res.status(500).json({ 
+      error: 'Diagnostic check failed', 
+      message: error.message,
+      stack: error.stack
+    });
   }
 });
 
-// Start server
-app.listen(PORT, () => {
+// Health check endpoint
+app.get('/api/health', async (req, res) => {
+  try {
+    // Test basic connection
+    await pool.query('SELECT 1');
+    
+    // Check if schema exists and get table count
+    const schemaCheck = await pool.query(`
+      SELECT COUNT(*) as table_count 
+      FROM information_schema.tables 
+      WHERE table_schema = 'hrms_data'
+    `);
+    
+    // Check if we can query a table (test with employees table)
+    let tableAccess = false;
+    try {
+      await pool.query('SELECT COUNT(*) FROM employees LIMIT 1');
+      tableAccess = true;
+    } catch (err) {
+      tableAccess = false;
+    }
+    
+    res.json({ 
+      status: 'ok', 
+      database: 'connected',
+      schema: 'hrms_data',
+      tables_found: parseInt(schemaCheck.rows[0].table_count),
+      table_access: tableAccess
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      status: 'error', 
+      database: 'disconnected', 
+      error: error.message,
+      details: error.stack
+    });
+  }
+});
+
+// Catch-all route for undefined endpoints
+app.use((req, res) => {
+  res.status(404).json({
+    error: 'Not Found',
+    message: `Cannot ${req.method} ${req.path}`,
+    availableEndpoints: [
+      'GET /',
+      'GET /api/health',
+      'GET /api/diagnostic',
+      'GET /api/test',
+      'GET /api/job-titles',
+      'GET /api/vacancies',
+      'GET /api/candidates',
+      'GET /api/employees'
+    ]
+  });
+});
+
+// Start server with error handling
+const server = app.listen(PORT, () => {
   console.log(`🚀 Arithwise HRM Backend API server running on port ${PORT}`);
   console.log(`📡 API endpoints available at http://localhost:${PORT}/api`);
+  console.log(`🔍 Diagnostic endpoint: http://localhost:${PORT}/api/diagnostic`);
+  console.log(`❤️  Health check: http://localhost:${PORT}/api/health`);
+});
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`❌ Port ${PORT} is already in use!`);
+    console.error(`💡 To fix this, run one of the following:`);
+    console.error(`   PowerShell: Get-Process -Id (Get-NetTCPConnection -LocalPort ${PORT}).OwningProcess | Stop-Process -Force`);
+    console.error(`   Or change BACKEND_PORT in your .env file to a different port (e.g., 3002)`);
+    process.exit(1);
+  } else {
+    console.error('❌ Server error:', err);
+    process.exit(1);
+  }
 });
 

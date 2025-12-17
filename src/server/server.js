@@ -1003,21 +1003,32 @@ app.delete('/api/employees/:id', async (req, res) => {
 });
 
 // Root endpoint - show available API endpoints
+// Root route - serve frontend if available, otherwise show API info
 app.get('/', (req, res) => {
-  res.json({
-    message: 'Arithwise HRM Backend API',
-    version: '1.0.0',
-    endpoints: {
-      health: '/api/health',
-      diagnostic: '/api/diagnostic',
-      test: '/api/test',
-      jobTitles: '/api/job-titles',
-      vacancies: '/api/vacancies',
-      candidates: '/api/candidates',
-      employees: '/api/employees'
-    },
-    documentation: 'See README.md for full API documentation'
-  });
+  const frontendDistPath = path.join(__dirname, '../../web/dist');
+  const indexPath = path.join(frontendDistPath, 'index.html');
+  
+  // If frontend is built, serve it
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    // Otherwise show API info
+    res.json({
+      message: 'Arithwise HRM Backend API',
+      version: '1.0.0',
+      endpoints: {
+        health: '/api/health',
+        diagnostic: '/api/diagnostic',
+        test: '/api/test',
+        jobTitles: '/api/job-titles',
+        vacancies: '/api/vacancies',
+        candidates: '/api/candidates',
+        employees: '/api/employees'
+      },
+      documentation: 'See README.md for full API documentation',
+      note: 'Frontend not built. Run "npm run build" in orangehrm/src/client to build frontend.'
+    });
+  }
 });
 
 // Simple connectivity test endpoint
@@ -1139,30 +1150,103 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
-// Catch-all route for undefined endpoints
-app.use((req, res) => {
-  res.status(404).json({
-    error: 'Not Found',
-    message: `Cannot ${req.method} ${req.path}`,
-    availableEndpoints: [
-      'GET /',
-      'GET /api/health',
-      'GET /api/diagnostic',
-      'GET /api/test',
-      'GET /api/job-titles',
-      'GET /api/vacancies',
-      'GET /api/candidates',
-      'GET /api/employees'
-    ]
+// Serve frontend static files (if built)
+// IMPORTANT: This must come AFTER all API routes
+const frontendDistPath = path.join(__dirname, '../../web/dist');
+if (fs.existsSync(frontendDistPath)) {
+  console.log('📁 Serving frontend from:', frontendDistPath);
+  
+  // Serve static files (JS, CSS, images, etc.) - these have priority
+  app.use(express.static(frontendDistPath, {
+    // Don't serve index.html here, we'll handle it below
+    index: false
+  }));
+  
+  // Serve index.html for all non-API, non-static-file routes (for React Router)
+  // This must come after express.static() so static files are served first
+  app.get('*', (req, res, next) => {
+    // Skip API routes - they should have been handled above
+    if (req.path.startsWith('/api')) {
+      return next();
+    }
+    // Serve index.html for all other routes (React Router will handle routing)
+    res.sendFile(path.join(frontendDistPath, 'index.html'), (err) => {
+      if (err) {
+        next(err);
+      }
+    });
   });
+} else {
+  console.log('⚠️  Frontend dist folder not found. Run "npm run build" in orangehrm/src/client to build frontend.');
+  console.log('   Expected path:', frontendDistPath);
+}
+
+// Catch-all 404 handler for API routes and other unmatched routes
+app.use((req, res) => {
+  if (req.path.startsWith('/api')) {
+    res.status(404).json({
+      error: 'Not Found',
+      message: `Cannot ${req.method} ${req.path}`,
+      availableEndpoints: [
+        'GET /',
+        'GET /api/health',
+        'GET /api/diagnostic',
+        'GET /api/test',
+        'GET /api/job-titles',
+        'GET /api/vacancies',
+        'GET /api/candidates',
+        'GET /api/employees'
+      ]
+    });
+  } else if (!fs.existsSync(frontendDistPath)) {
+    // Frontend not built - show helpful message
+    res.status(404).send(`
+      <html>
+        <head><title>Frontend Not Built</title></head>
+        <body style="font-family: Arial; padding: 40px; text-align: center;">
+          <h1>Frontend Not Found</h1>
+          <p>The frontend has not been built yet.</p>
+          <p>To build the frontend, run:</p>
+          <pre style="background: #f5f5f5; padding: 20px; display: inline-block; border-radius: 5px;">
+cd orangehrm/src/client
+npm run build
+          </pre>
+          <p>Or for development, use webpack dev server:</p>
+          <pre style="background: #f5f5f5; padding: 20px; display: inline-block; border-radius: 5px;">
+cd orangehrm/src/client
+npm run serve
+          </pre>
+          <p><a href="/api/health">API Health Check</a> | <a href="/api">API Endpoints</a></p>
+        </body>
+      </html>
+    `);
+  } else {
+    // Frontend is built but route not found - should not happen if React Router is working
+    res.status(404).send(`
+      <html>
+        <head><title>404 Not Found</title></head>
+        <body style="font-family: Arial; padding: 40px; text-align: center;">
+          <h1>404 - Page Not Found</h1>
+          <p><a href="/">Go to Home</a> | <a href="/api/health">API Health</a></p>
+        </body>
+      </html>
+    `);
+  }
 });
 
 // Start server with error handling
 const server = app.listen(PORT, () => {
-  console.log(`🚀 Arithwise HRM Backend API server running on port ${PORT}`);
-  console.log(`📡 API endpoints available at http://localhost:${PORT}/api`);
-  console.log(`🔍 Diagnostic endpoint: http://localhost:${PORT}/api/diagnostic`);
+  console.log(`🚀 Arithwise HRM server running on port ${PORT}`);
+  console.log(`📡 API endpoints: http://localhost:${PORT}/api`);
+  console.log(`🌐 Frontend: http://localhost:${PORT}`);
+  console.log(`🔍 Diagnostic: http://localhost:${PORT}/api/diagnostic`);
   console.log(`❤️  Health check: http://localhost:${PORT}/api/health`);
+  if (fs.existsSync(frontendDistPath)) {
+    console.log(`✅ Frontend is being served from backend`);
+  } else {
+    console.log(`⚠️  Frontend not built - only API is available`);
+    console.log(`   Build frontend: cd orangehrm/src/client && npm run build`);
+  }
 });
 
 server.on('error', (err) => {

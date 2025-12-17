@@ -3,7 +3,8 @@
  * Copyright (C) 2024 Arithwise Inc.
  */
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
+// Use relative URL when running on same port, otherwise use full URL
+const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
 
 class ApiService {
   private baseUrl: string;

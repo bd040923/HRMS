@@ -725,6 +725,7 @@ const Dashboard: React.FC = () => {
 // About Component
 const About: React.FC = () => {
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
 
   return (
     <div style={{ 

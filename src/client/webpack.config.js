@@ -11,10 +11,9 @@ module.exports = (env, argv) => {
   const isWatch = process.argv.includes('--watch');
   const isDevServer = process.argv.includes('serve');
   
-  // For dev server, use in-memory filesystem, for build use web/dist
-  const outputPath = isDevServer 
-    ? path.resolve(__dirname, 'dist')
-    : path.resolve(__dirname, '../../web/dist');
+  // Always output to web/dist so backend can serve it
+  // For dev server, it uses in-memory but we still need the path for reference
+  const outputPath = path.resolve(__dirname, '../../web/dist');
 
   return {
     entry: './src/index.tsx',
@@ -22,7 +21,7 @@ module.exports = (env, argv) => {
       path: outputPath,
       filename: isDevServer ? 'js/[name].js' : 'js/[name].[contenthash].js',
       chunkFilename: isDevServer ? 'js/[name].chunk.js' : 'js/[name].[contenthash].chunk.js',
-      publicPath: isDevServer ? '/' : '.',
+      publicPath: '/', // Always use root-relative paths for serving from backend
       clean: !isDevServer, // Don't clean on dev server
     },
     resolve: {
@@ -120,10 +119,22 @@ module.exports = (env, argv) => {
         directory: path.join(__dirname, 'public'),
       },
       compress: true,
-      port: 3000,
+      port: 3001, // Same port as backend
       hot: true,
       open: true,
       historyApiFallback: true,
+      // Proxy API requests to backend
+      // Note: In development, you can either:
+      // 1. Run backend on 3001 and webpack on 3001 (conflict - use option 2)
+      // 2. Run backend on 3001, webpack on 3000, proxy /api to 3001
+      // 3. Build frontend and serve from backend (recommended for same port)
+      proxy: {
+        '/api': {
+          target: 'http://localhost:3001',
+          changeOrigin: true,
+          logLevel: 'debug',
+        }
+      },
       client: {
         overlay: {
           errors: true,

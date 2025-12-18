@@ -36,15 +36,37 @@ import Recruitment from './pages/Recruitment';
 import Performance from './pages/Performance';
 import Training from './pages/Training';
 import Reports from './pages/Reports';
+import PIMReports from './pages/PIMReports';
+import EmployeeReports from './pages/EmployeeReports';
 import UserManagement from './pages/UserManagement';
 import MyInfo from './pages/MyInfo';
 import TimePage from './pages/TimePage';
 import JobTitles from './pages/Admin/JobTitles';
+import PayGrades from './pages/Admin/PayGrades';
+import EmploymentStatus from './pages/Admin/EmploymentStatus';
+import WorkShifts from './pages/Admin/WorkShifts';
+import JobCategories from './pages/Admin/JobCategories';
 import Organization from './pages/Admin/Organization';
+import GeneralInformation from './pages/Admin/GeneralInformation';
+import Locations from './pages/Admin/Locations';
+import Structure from './pages/Admin/Structure';
 import Qualifications from './pages/Admin/Qualifications';
+import Skills from './pages/Admin/Skills';
+import Education from './pages/Admin/Education';
+import Licenses from './pages/Admin/Licenses';
+import Languages from './pages/Admin/Languages';
+import Memberships from './pages/Admin/Memberships';
 import Nationalities from './pages/Admin/Nationalities';
 import CorporateBranding from './pages/Admin/CorporateBranding';
 import Configuration from './pages/Admin/Configuration';
+import EmailConfiguration from './pages/Admin/EmailConfiguration';
+import EmailSubscriptions from './pages/Admin/EmailSubscriptions';
+import Localization from './pages/Admin/Localization';
+import LanguagePackages from './pages/Admin/LanguagePackages';
+import Modules from './pages/Admin/Modules';
+import SocialMediaAuth from './pages/Admin/SocialMediaAuth';
+import OAuthClient from './pages/Admin/OAuthClient';
+import LDAPConfiguration from './pages/Admin/LDAPConfiguration';
 
 // Brand Colors
 const COLORS = {
@@ -81,7 +103,7 @@ const TYPOGRAPHY = {
 
 // Environment variables are available via process.env
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost/arithwise/web';
-const APP_NAME = process.env.REACT_APP_NAME || 'Arithwise HRM';
+const APP_NAME = process.env.REACT_APP_NAME || 'arithwise_hrms';
 
 // Home Page Component
 const HomePage: React.FC = () => {
@@ -631,7 +653,7 @@ const Dashboard: React.FC = () => {
               color: COLORS.text,
             }}
           >
-            <li>Welcome to Arithwise HRM!</li>
+            <li>Welcome to arithwise_hrms!</li>
             <li>New leave policy effective from next month.</li>
             <li>Remember to submit timesheets by Friday.</li>
           </ul>
@@ -764,7 +786,7 @@ const About: React.FC = () => {
         fontFamily: TYPOGRAPHY.fontFamily,
         fontWeight: TYPOGRAPHY.heading.fontWeight
       }}>
-        About Arithwise HRM
+        About arithwise_hrms
       </h1>
       
       <div style={{
@@ -1124,24 +1146,15 @@ const App: React.FC = () => {
               gap: '12px'
             }}
           >
-            <img 
-              src="/OIP.webp" 
-              alt="Arithwise Logo" 
-              style={{
-                height: '40px',
-                width: 'auto',
-                objectFit: 'contain',
-                maxWidth: '200px'
-              }}
-              onError={(e) => {
-                const target = e.target as HTMLImageElement;
-                target.style.display = 'none';
-                const parent = target.parentElement;
-                if (parent) {
-                  parent.innerHTML = `<span style="color: ${COLORS.primary}; font-size: ${TYPOGRAPHY.heading.fontSize}; font-family: ${TYPOGRAPHY.fontFamily}; font-weight: ${TYPOGRAPHY.heading.fontWeight}; letter-spacing: 0.5px;">${APP_NAME}</span>`;
-                }
-              }}
-            />
+            <span style={{
+              color: COLORS.primary,
+              fontSize: '1.5rem',
+              fontFamily: TYPOGRAPHY.fontFamily,
+              fontWeight: 600,
+              letterSpacing: '0.5px'
+            }}>
+              {APP_NAME}
+            </span>
           </Link>
           
           <div style={{ 
@@ -1282,16 +1295,38 @@ const App: React.FC = () => {
         <Route path="/performance" element={<ProtectedRoute><Performance /></ProtectedRoute>} />
         <Route path="/training" element={<ProtectedRoute><Training /></ProtectedRoute>} />
         <Route path="/reports" element={<ProtectedRoute requiredPermission="view_reports"><Reports /></ProtectedRoute>} />
+        <Route path="/reports/pim" element={<ProtectedRoute requiredPermission="view_reports"><PIMReports /></ProtectedRoute>} />
+        <Route path="/reports/employee" element={<ProtectedRoute requiredPermission="view_reports"><EmployeeReports /></ProtectedRoute>} />
         <Route path="/my-info" element={<ProtectedRoute><MyInfo /></ProtectedRoute>} />
         <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><UserManagement /></ProtectedRoute>} />
         <Route path="/admin/users" element={<ProtectedRoute requiredRole="admin"><UserManagement /></ProtectedRoute>} />
         <Route path="/admin/job" element={<JobTitles />} />
         <Route path="/admin/job-titles" element={<JobTitles />} />
+        <Route path="/admin/pay-grades" element={<PayGrades />} />
+        <Route path="/admin/employment-status" element={<EmploymentStatus />} />
+        <Route path="/admin/job-categories" element={<JobCategories />} />
+        <Route path="/admin/work-shifts" element={<WorkShifts />} />
         <Route path="/admin/organization" element={<Organization />} />
+        <Route path="/admin/general-information" element={<GeneralInformation />} />
+        <Route path="/admin/locations" element={<Locations />} />
+        <Route path="/admin/structure" element={<Structure />} />
         <Route path="/admin/qualifications" element={<Qualifications />} />
+        <Route path="/admin/skills" element={<Skills />} />
+        <Route path="/admin/education" element={<Education />} />
+        <Route path="/admin/licenses" element={<Licenses />} />
+        <Route path="/admin/languages" element={<Languages />} />
+        <Route path="/admin/memberships" element={<Memberships />} />
         <Route path="/admin/nationalities" element={<Nationalities />} />
         <Route path="/admin/branding" element={<CorporateBranding />} />
         <Route path="/admin/configuration" element={<Configuration />} />
+        <Route path="/admin/config/email" element={<EmailConfiguration />} />
+        <Route path="/admin/config/email-subscriptions" element={<EmailSubscriptions />} />
+        <Route path="/admin/config/localization" element={<Localization />} />
+        <Route path="/admin/config/language-packages" element={<LanguagePackages />} />
+        <Route path="/admin/config/modules" element={<Modules />} />
+        <Route path="/admin/config/social-auth" element={<SocialMediaAuth />} />
+        <Route path="/admin/config/oauth-client" element={<OAuthClient />} />
+        <Route path="/admin/config/ldap" element={<LDAPConfiguration />} />
       </Routes>
       </div>
       </div>

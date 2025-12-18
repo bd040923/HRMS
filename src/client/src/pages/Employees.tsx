@@ -1416,7 +1416,13 @@ const Employees: React.FC = () => {
             <div key={tab.key} style={{ position: 'relative' }}>
               <button
                 onClick={() => {
-                  setActiveTab(tab.key);
+                  // If tab has a menu, toggle it. Otherwise just set active tab
+                  if (tab.menuKey) {
+                    // Toggle: if already active, close it; if not active, open it
+                    setActiveTab(isActive ? 'list' : tab.key);
+                  } else {
+                    setActiveTab(tab.key);
+                  }
                 }}
                 style={{
                   padding: '10px 18px',
@@ -1461,7 +1467,26 @@ const Employees: React.FC = () => {
                         color: COLORS.text,
                         cursor: 'pointer',
                       }}
-                      onClick={() => setActiveTab(tab.key)}
+                      onClick={(e) => {
+                        e.stopPropagation(); // Prevent event bubbling
+                        if (tab.key === 'reports') {
+                          if (item === 'PIM Reports') {
+                            navigate('/reports/pim');
+                          } else if (item === 'Employee Reports') {
+                            navigate('/reports/employee');
+                          }
+                          // Close the dropdown after navigation
+                          setActiveTab('list');
+                        } else {
+                          setActiveTab(tab.key);
+                        }
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = COLORS.lightBg;
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = COLORS.white;
+                      }}
                     >
                       {item}
                     </div>

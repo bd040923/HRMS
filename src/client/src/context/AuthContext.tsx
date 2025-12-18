@@ -72,11 +72,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       setIsLoading(true);
       
-      // In production, this would call your backend API
-      // For now, using mock authentication
-      const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost/orangehrm/web';
+      // Call backend API for authentication
+      const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
       
-      const response = await fetch(`${API_BASE_URL}/api/v1/auth/login`, {
+      const response = await fetch(`${API_BASE_URL}/v1/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

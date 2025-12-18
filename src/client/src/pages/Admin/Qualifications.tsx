@@ -3,44 +3,26 @@
  * Copyright (C) 2024 Arithwise Inc.
  */
 
-import React from 'react';
-import AdminLayout from './AdminLayout';
+import React, { useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import ProtectedRoute from '../../components/ProtectedRoute';
 
-const COLORS = {
-  white: '#ffffff',
-  text: '#333333',
-  border: '#e0e0e0',
-};
-
-const TYPOGRAPHY = {
-  fontFamily: "'Segoe UI', Arial, sans-serif",
-  textImportant: { fontSize: '16px' },
-};
-
 const Qualifications: React.FC = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    // Only redirect if we're exactly on /admin/qualifications
+    if (location.pathname === '/admin/qualifications') {
+      navigate('/admin/skills', { replace: true });
+    }
+  }, [navigate, location.pathname]);
+
   return (
     <ProtectedRoute requiredPermission="view_employees">
-      <AdminLayout title="Qualifications" breadcrumbs={['Admin', 'Qualifications']}>
-        <div style={{
-          backgroundColor: COLORS.white,
-          padding: '24px',
-          borderRadius: '8px',
-          border: `1px solid ${COLORS.border}`,
-          boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
-        }}>
-          <p style={{
-            fontSize: TYPOGRAPHY.textImportant.fontSize,
-            fontFamily: TYPOGRAPHY.fontFamily,
-            color: COLORS.text
-          }}>
-            Qualifications management features coming soon...
-          </p>
-        </div>
-      </AdminLayout>
+      <div>Loading...</div>
     </ProtectedRoute>
   );
 };
 
 export default Qualifications;
-

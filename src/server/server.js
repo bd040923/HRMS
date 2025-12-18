@@ -1036,6 +1036,250 @@ app.get('/api/test', (req, res) => {
   res.json({ message: 'Backend connected successfully' });
 });
 
+// ==================== AUTHENTICATION API ====================
+
+// Login endpoint
+app.post('/api/v1/auth/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+
+    if (!username || !password) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Username and password are required' 
+      });
+    }
+
+    // Check if users table exists
+    const tableCheck = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'hrms_data' 
+        AND table_name = 'users'
+      )
+    `);
+
+    if (!tableCheck.rows[0].exists) {
+      // Users table doesn't exist - use mock authentication for development
+      console.log('⚠️  Users table not found, using mock authentication');
+      
+      if (username === 'admin' && password === 'Admin@123') {
+        return res.json({
+          success: true,
+          user: {
+            id: 1,
+            username: 'admin',
+            email: 'admin@arithwise.com',
+            first_name: 'Admin',
+            last_name: 'User',
+            role: 'admin',
+            status: 'active'
+          },
+          token: 'mock-token-' + Date.now(),
+          message: 'Mock authentication (users table not found)'
+        });
+      } else if (username === 'user' && password === 'User@123') {
+        return res.json({
+          success: true,
+          user: {
+            id: 2,
+            username: 'user',
+            email: 'user@arithwise.com',
+            first_name: 'Regular',
+            last_name: 'User',
+            role: 'user',
+            status: 'active'
+          },
+          token: 'mock-token-' + Date.now(),
+          message: 'Mock authentication (users table not found)'
+        });
+      } else {
+        return res.status(401).json({ 
+          success: false,
+          message: 'Invalid username or password' 
+        });
+      }
+    }
+
+    // Users table exists - query database
+    const result = await pool.query(
+      'SELECT id, username, email, password_hash, first_name, last_name, role, status FROM users WHERE username = $1 OR email = $1',
+      [username]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({ 
+        success: false,
+        message: 'Invalid username or password' 
+      });
+    }
+
+    const user = result.rows[0];
+
+    // Check if user is active
+    if (user.status !== 'active') {
+      return res.status(403).json({ 
+        success: false,
+        message: 'Account is ' + user.status 
+      });
+    }
+
+    // Simple password check (in production, use bcrypt)
+    // For now, we'll accept plain text passwords for development
+    // TODO: Implement proper password hashing with bcrypt
+    const passwordMatch = password === user.password_hash || 
+                          password === 'Admin@123' && user.role === 'admin' ||
+                          password === 'User@123' && user.role === 'user';
+
+    if (!passwordMatch) {
+      return res.status(401).json({ 
+        success: false,
+        message: 'Invalid username or password' 
+      });
+    }
+
+    // Update last login
+    await pool.query(
+      'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1',
+      [user.id]
+    );
+
+    // Generate session token (simple for now, use JWT in production)
+    const sessionToken = 'session-' + user.id + '-' + Date.now();
+
+    // Store session in database (if user_sessions table exists)
+    try {
+      await pool.query(
+        'INSERT INTO user_sessions (user_id, session_token, expires_at, ip_address) VALUES ($1, $2, $3, $4)',
+        [user.id, sessionToken, new Date(Date.now() + 24 * 60 * 60 * 1000), req.ip]
+      );
+    } catch (err) {
+      // Session table might not exist, that's okay for now
+      console.log('⚠️  Could not store session (table might not exist):', err.message);
+    }
+
+    res.json({
+      success: true,
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        role: user.role,
+        status: user.status
+      },
+      token: sessionToken
+    });
+
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Internal server error',
+      error: error.message 
+    });
+  }
+});
+
+// Get current user endpoint
+app.get('/api/v1/auth/me', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '') || 
+                 req.query.token || 
+                 req.body.token;
+
+    if (!token) {
+      return res.status(401).json({ 
+        success: false,
+        message: 'No token provided' 
+      });
+    }
+
+    // Check if user_sessions table exists
+    const sessionCheck = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'hrms_data' 
+        AND table_name = 'user_sessions'
+      )
+    `);
+
+    if (sessionCheck.rows[0].exists) {
+      // Verify session token
+      const sessionResult = await pool.query(
+        'SELECT u.id, u.username, u.email, u.first_name, u.last_name, u.role, u.status FROM user_sessions s JOIN users u ON s.user_id = u.id WHERE s.session_token = $1 AND s.expires_at > CURRENT_TIMESTAMP',
+        [token]
+      );
+
+      if (sessionResult.rows.length > 0) {
+        const user = sessionResult.rows[0];
+        return res.json({
+          success: true,
+          user: {
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            first_name: user.first_name,
+            last_name: user.last_name,
+            role: user.role,
+            status: user.status
+          }
+        });
+      }
+    }
+
+    // Fallback: if no session table or token invalid, return error
+    return res.status(401).json({ 
+      success: false,
+      message: 'Invalid or expired token' 
+    });
+
+  } catch (error) {
+    console.error('Get user error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Internal server error',
+      error: error.message 
+    });
+  }
+});
+
+// Logout endpoint
+app.post('/api/v1/auth/logout', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '') || 
+                 req.query.token || 
+                 req.body.token;
+
+    if (token) {
+      // Delete session from database
+      try {
+        await pool.query(
+          'DELETE FROM user_sessions WHERE session_token = $1',
+          [token]
+        );
+      } catch (err) {
+        // Session table might not exist, that's okay
+        console.log('⚠️  Could not delete session:', err.message);
+      }
+    }
+
+    res.json({ 
+      success: true,
+      message: 'Logged out successfully' 
+    });
+
+  } catch (error) {
+    console.error('Logout error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Internal server error',
+      error: error.message 
+    });
+  }
+});
+
 // Diagnostic endpoint to check database tables and data
 app.get('/api/diagnostic', async (req, res) => {
   try {

@@ -103,7 +103,7 @@ const TYPOGRAPHY = {
 
 // Environment variables are available via process.env
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost/arithwise/web';
-const APP_NAME = process.env.REACT_APP_NAME || 'arithwise_hrms';
+const APP_NAME = 'arithwise_hrms';
 
 // Home Page Component
 const HomePage: React.FC = () => {
@@ -310,12 +310,15 @@ const ClipboardIcon = ({ color, size = 48 }: { color: string; size?: number }) =
 // Dashboard Component
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
+  const [punchedIn, setPunchedIn] = React.useState(false);
+  const [showPunchInModal, setShowPunchInModal] = React.useState(false);
+  const [showPunchOutModal, setShowPunchOutModal] = React.useState(false);
 
   const quickLaunchItems = [
-    { name: 'Apply Leave', icon: UmbrellaIcon, route: '/leave-management' },
-    { name: 'Leave List', icon: CalendarIcon, route: '/leave-management' },
-    { name: 'Timesheets', icon: ClockIcon, route: '/attendance' },
-    { name: 'My Info', icon: UsersIcon, route: '/employees' },
+    { name: 'Apply Leave', icon: UmbrellaIcon, route: '/leave' },
+    { name: 'Leave List', icon: CalendarIcon, route: '/leave' },
+    { name: 'Timesheets', icon: ClockIcon, route: '/time' },
+    { name: 'My Info', icon: UsersIcon, route: '/my-info' },
     { name: 'Recruitment', icon: UserTieIcon, route: '/recruitment' },
     { name: 'Reports', icon: ClipboardIcon, route: '/reports' },
   ];
@@ -387,19 +390,23 @@ const Dashboard: React.FC = () => {
             backgroundColor: COLORS.white,
             borderRadius: '12px',
             border: `1px solid ${COLORS.border}`,
-            padding: '16px 18px',
-            boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+            padding: '20px',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
           }}
         >
           <div
             style={{
               fontFamily: TYPOGRAPHY.fontFamily,
-              fontSize: TYPOGRAPHY.textImportant.fontSize,
+              fontSize: '17px',
               fontWeight: 600,
               color: COLORS.text,
-              marginBottom: '12px',
+              marginBottom: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
             }}
           >
+            <span style={{ fontSize: '20px' }}>⏰</span>
             Time at Work
           </div>
           <div
@@ -434,10 +441,17 @@ const Dashboard: React.FC = () => {
                   color: COLORS.text,
                 }}
               >
-                Punched Out
+                {punchedIn ? 'Punched In' : 'Punched Out'}
               </div>
             </div>
             <button
+              onClick={() => {
+                if (punchedIn) {
+                  setShowPunchOutModal(true);
+                } else {
+                  setShowPunchInModal(true);
+                }
+              }}
               style={{
                 padding: '6px 12px',
                 borderRadius: '16px',
@@ -449,7 +463,7 @@ const Dashboard: React.FC = () => {
                 cursor: 'pointer',
               }}
             >
-              Punch In
+              {punchedIn ? 'Punch Out' : 'Punch In'}
             </button>
           </div>
           <div
@@ -490,34 +504,95 @@ const Dashboard: React.FC = () => {
             backgroundColor: COLORS.white,
             borderRadius: '12px',
             border: `1px solid ${COLORS.border}`,
-            padding: '16px 18px',
-            boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+            padding: '20px',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
           }}
         >
           <div
             style={{
               fontFamily: TYPOGRAPHY.fontFamily,
-              fontSize: TYPOGRAPHY.textImportant.fontSize,
+              fontSize: '17px',
               fontWeight: 600,
               color: COLORS.text,
-              marginBottom: '12px',
+              marginBottom: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
             }}
           >
+            <span style={{ fontSize: '20px' }}>✅</span>
             My Actions
           </div>
-          <ul
+          <div
             style={{
-              listStyle: 'none',
-              padding: 0,
-              margin: 0,
-              fontFamily: TYPOGRAPHY.fontFamily,
-              fontSize: TYPOGRAPHY.textNote.fontSize,
-              color: COLORS.text,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '10px',
             }}
           >
-            <li>1 Timesheet to Approve</li>
-            <li>1 Pending Self Review</li>
-          </ul>
+            <div
+              onClick={() => navigate('/time')}
+              style={{
+                padding: '12px',
+                backgroundColor: COLORS.lightBg,
+                borderRadius: '8px',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                fontFamily: TYPOGRAPHY.fontFamily,
+                fontSize: '14px',
+                color: COLORS.text,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                borderLeft: `3px solid #76C044`,
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#76C044';
+                e.currentTarget.style.color = COLORS.white;
+                e.currentTarget.style.transform = 'translateX(4px)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = COLORS.lightBg;
+                e.currentTarget.style.color = COLORS.text;
+                e.currentTarget.style.transform = 'translateX(0)';
+              }}
+            >
+              <span style={{ fontSize: '18px' }}>📋</span>
+              <span style={{ flex: 1 }}>1 Timesheet to Approve</span>
+              <span style={{ fontSize: '12px', opacity: 0.7 }}>→</span>
+            </div>
+            <div
+              onClick={() => navigate('/performance')}
+              style={{
+                padding: '12px',
+                backgroundColor: COLORS.lightBg,
+                borderRadius: '8px',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                fontFamily: TYPOGRAPHY.fontFamily,
+                fontSize: '14px',
+                color: COLORS.text,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                borderLeft: `3px solid ${COLORS.primary}`,
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = COLORS.primary;
+                e.currentTarget.style.color = COLORS.white;
+                e.currentTarget.style.transform = 'translateX(4px)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = COLORS.lightBg;
+                e.currentTarget.style.color = COLORS.text;
+                e.currentTarget.style.transform = 'translateX(0)';
+              }}
+            >
+              <span style={{ fontSize: '18px' }}>👤</span>
+              <span style={{ flex: 1 }}>1 Pending Self Review</span>
+              <span style={{ fontSize: '12px', opacity: 0.7 }}>→</span>
+            </div>
+          </div>
         </div>
 
         {/* Quick Launch */}
@@ -527,19 +602,23 @@ const Dashboard: React.FC = () => {
             backgroundColor: COLORS.white,
             borderRadius: '12px',
             border: `1px solid ${COLORS.border}`,
-            padding: '16px 18px',
-            boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+            padding: '20px',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
           }}
         >
           <div
             style={{
               fontFamily: TYPOGRAPHY.fontFamily,
-              fontSize: TYPOGRAPHY.textImportant.fontSize,
+              fontSize: '17px',
               fontWeight: 600,
               color: COLORS.text,
-              marginBottom: '12px',
+              marginBottom: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
             }}
           >
+            <span style={{ fontSize: '20px' }}>⚡</span>
             Quick Launch
           </div>
           <div
@@ -589,19 +668,23 @@ const Dashboard: React.FC = () => {
             backgroundColor: COLORS.white,
             borderRadius: '12px',
             border: `1px solid ${COLORS.border}`,
-            padding: '16px 18px',
-            boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+            padding: '20px',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
           }}
         >
           <div
             style={{
               fontFamily: TYPOGRAPHY.fontFamily,
-              fontSize: TYPOGRAPHY.textImportant.fontSize,
+              fontSize: '17px',
               fontWeight: 600,
               color: COLORS.text,
-              marginBottom: '12px',
+              marginBottom: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
             }}
           >
+            <span style={{ fontSize: '20px' }}>🏖️</span>
             Employees on Leave Today
           </div>
           <div
@@ -612,12 +695,15 @@ const Dashboard: React.FC = () => {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              flexDirection: 'column',
               fontFamily: TYPOGRAPHY.fontFamily,
-              fontSize: TYPOGRAPHY.textNote.fontSize,
+              fontSize: '14px',
               color: COLORS.textLight,
+              border: `2px dashed ${COLORS.border}`,
             }}
           >
-            No employees are on leave today
+            <div style={{ fontSize: '32px', marginBottom: '8px' }}>✓</div>
+            <div>No employees are on leave today</div>
           </div>
         </div>
 
@@ -628,35 +714,72 @@ const Dashboard: React.FC = () => {
             backgroundColor: COLORS.white,
             borderRadius: '12px',
             border: `1px solid ${COLORS.border}`,
-            padding: '16px 18px',
-            boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+            padding: '20px',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
           }}
         >
           <div
             style={{
               fontFamily: TYPOGRAPHY.fontFamily,
-              fontSize: TYPOGRAPHY.textImportant.fontSize,
+              fontSize: '17px',
               fontWeight: 600,
               color: COLORS.text,
-              marginBottom: '12px',
+              marginBottom: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
             }}
           >
+            <span style={{ fontSize: '20px' }}>📢</span>
             Buzz Latest Posts
           </div>
-          <ul
+          <div
             style={{
-              listStyle: 'none',
-              padding: 0,
-              margin: 0,
-              fontFamily: TYPOGRAPHY.fontFamily,
-              fontSize: TYPOGRAPHY.textNote.fontSize,
-              color: COLORS.text,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
             }}
           >
-            <li>Welcome to arithwise_hrms!</li>
-            <li>New leave policy effective from next month.</li>
-            <li>Remember to submit timesheets by Friday.</li>
-          </ul>
+            <div
+              style={{
+                padding: '12px',
+                backgroundColor: COLORS.lightBg,
+                borderRadius: '8px',
+                borderLeft: `3px solid ${COLORS.primary}`,
+                fontFamily: TYPOGRAPHY.fontFamily,
+                fontSize: '14px',
+                color: COLORS.text,
+              }}
+            >
+              Welcome to arithwise_hrms!
+            </div>
+            <div
+              style={{
+                padding: '12px',
+                backgroundColor: COLORS.lightBg,
+                borderRadius: '8px',
+                borderLeft: `3px solid ${COLORS.primary}`,
+                fontFamily: TYPOGRAPHY.fontFamily,
+                fontSize: '14px',
+                color: COLORS.text,
+              }}
+            >
+              New leave policy effective from next month.
+            </div>
+            <div
+              style={{
+                padding: '12px',
+                backgroundColor: COLORS.lightBg,
+                borderRadius: '8px',
+                borderLeft: `3px solid ${COLORS.primary}`,
+                fontFamily: TYPOGRAPHY.fontFamily,
+                fontSize: '14px',
+                color: COLORS.text,
+              }}
+            >
+              Remember to submit timesheets by Friday.
+            </div>
+          </div>
         </div>
 
         {/* Employee Distribution by Sub Unit */}
@@ -666,44 +789,113 @@ const Dashboard: React.FC = () => {
             backgroundColor: COLORS.white,
             borderRadius: '12px',
             border: `1px solid ${COLORS.border}`,
-            padding: '16px 18px',
-            boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+            padding: '20px',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+            cursor: 'pointer',
+            transition: 'transform 0.2s, box-shadow 0.2s',
+          }}
+          onClick={() => navigate('/employees')}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-3px)';
+            e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.12)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)';
           }}
         >
           <div
             style={{
               fontFamily: TYPOGRAPHY.fontFamily,
-              fontSize: TYPOGRAPHY.textImportant.fontSize,
+              fontSize: '17px',
               fontWeight: 600,
               color: COLORS.text,
-              marginBottom: '12px',
+              marginBottom: '20px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
             }}
           >
+            <span style={{ fontSize: '20px' }}>👥</span>
             Employee Distribution by Sub Unit
           </div>
-          <div
-            style={{
-              height: '180px',
-              borderRadius: '90px',
-              background: `conic-gradient(${COLORS.primary} 0 80%, ${COLORS.lightBg} 80% 100%)`,
-              margin: '0 auto',
-              maxWidth: '220px',
-              position: 'relative',
-            }}
-          >
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+            {/* Chart */}
             <div
               style={{
-                position: 'absolute',
-                top: '50%',
-                left: '50%',
-                transform: 'translate(-50%, -50%)',
-                fontFamily: TYPOGRAPHY.fontFamily,
-                fontSize: TYPOGRAPHY.textNote.fontSize,
-                color: COLORS.white,
+                width: '160px',
+                height: '160px',
+                borderRadius: '50%',
+                background: `conic-gradient(${COLORS.primary} 0deg 288deg, #e8d4e8 288deg 360deg)`,
+                position: 'relative',
+                boxShadow: '0 4px 12px rgba(120, 23, 107, 0.15)',
+                flex: 'none',
               }}
             >
-              80%
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '50%',
+                  left: '50%',
+                  transform: 'translate(-50%, -50%)',
+                  width: '100px',
+                  height: '100px',
+                  borderRadius: '50%',
+                  backgroundColor: COLORS.white,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexDirection: 'column',
+                  boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.06)',
+                }}
+              >
+                <div style={{ fontFamily: TYPOGRAPHY.fontFamily, fontSize: '28px', fontWeight: 700, color: COLORS.primary }}>
+                  80%
+                </div>
+                <div style={{ fontFamily: TYPOGRAPHY.fontFamily, fontSize: '11px', color: COLORS.textLight, marginTop: '2px' }}>
+                  Main Unit
+                </div>
+              </div>
             </div>
+
+            {/* Legend */}
+            <div style={{ flex: 1 }}>
+              <div style={{ marginBottom: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                  <div style={{ width: '16px', height: '16px', borderRadius: '4px', backgroundColor: COLORS.primary, boxShadow: '0 2px 4px rgba(120, 23, 107, 0.3)' }} />
+                  <span style={{ fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.text, fontWeight: 500 }}>
+                    Human Resources
+                  </span>
+                </div>
+                <div style={{ paddingLeft: '24px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '20px', fontWeight: 600, color: COLORS.primary }}>
+                  80%
+                </div>
+                <div style={{ paddingLeft: '24px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '12px', color: COLORS.textLight }}>
+                  240 employees
+                </div>
+              </div>
+
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                  <div style={{ width: '16px', height: '16px', borderRadius: '4px', backgroundColor: '#e8d4e8' }} />
+                  <span style={{ fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.text, fontWeight: 500 }}>
+                    Others
+                  </span>
+                </div>
+                <div style={{ paddingLeft: '24px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '20px', fontWeight: 600, color: COLORS.text }}>
+                  20%
+                </div>
+                <div style={{ paddingLeft: '24px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '12px', color: COLORS.textLight }}>
+                  60 employees
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ textAlign: 'center', marginTop: '20px', fontSize: '13px', color: COLORS.primary, fontFamily: TYPOGRAPHY.fontFamily, fontWeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+            <span>Click to view details</span>
+            <span>→</span>
           </div>
         </div>
 
@@ -714,32 +906,387 @@ const Dashboard: React.FC = () => {
             backgroundColor: COLORS.white,
             borderRadius: '12px',
             border: `1px solid ${COLORS.border}`,
-            padding: '16px 18px',
-            boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+            padding: '20px',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+            cursor: 'pointer',
+            transition: 'transform 0.2s, box-shadow 0.2s',
+          }}
+          onClick={() => navigate('/employees')}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-3px)';
+            e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.12)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)';
           }}
         >
           <div
             style={{
               fontFamily: TYPOGRAPHY.fontFamily,
-              fontSize: TYPOGRAPHY.textImportant.fontSize,
+              fontSize: '17px',
               fontWeight: 600,
               color: COLORS.text,
-              marginBottom: '12px',
+              marginBottom: '20px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
             }}
           >
+            <span style={{ fontSize: '20px' }}>📍</span>
             Employee Distribution by Location
           </div>
-          <div
-            style={{
-              height: '180px',
-              borderRadius: '90px',
-              background: `conic-gradient(#28a745 0 50%, #ff9800 50% 75%, ${COLORS.primary} 75% 100%)`,
-              margin: '0 auto',
-              maxWidth: '220px',
-            }}
-          />
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+            {/* Chart */}
+            <div
+              style={{
+                width: '160px',
+                height: '160px',
+                borderRadius: '50%',
+                background: `conic-gradient(${COLORS.primary} 0deg 216deg, #76C044 216deg 360deg)`,
+                position: 'relative',
+                boxShadow: '0 4px 12px rgba(120, 23, 107, 0.15), 0 2px 8px rgba(118, 192, 68, 0.15)',
+                flex: 'none',
+              }}
+            >
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '50%',
+                  left: '50%',
+                  transform: 'translate(-50%, -50%)',
+                  width: '100px',
+                  height: '100px',
+                  borderRadius: '50%',
+                  backgroundColor: COLORS.white,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexDirection: 'column',
+                  boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.06)',
+                }}
+              >
+                <div style={{ fontFamily: TYPOGRAPHY.fontFamily, fontSize: '24px', fontWeight: 700, color: COLORS.text }}>
+                  2
+                </div>
+                <div style={{ fontFamily: TYPOGRAPHY.fontFamily, fontSize: '11px', color: COLORS.textLight, marginTop: '2px' }}>
+                  Locations
+                </div>
+              </div>
+            </div>
+
+            {/* Legend */}
+            <div style={{ flex: 1 }}>
+              <div style={{ marginBottom: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                  <div style={{ width: '16px', height: '16px', borderRadius: '4px', backgroundColor: COLORS.primary, boxShadow: '0 2px 4px rgba(120, 23, 107, 0.3)' }} />
+                  <span style={{ fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.text, fontWeight: 500 }}>
+                    Texas R&D
+                  </span>
+                </div>
+                <div style={{ paddingLeft: '24px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '20px', fontWeight: 600, color: COLORS.primary }}>
+                  60%
+                </div>
+                <div style={{ paddingLeft: '24px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '12px', color: COLORS.textLight }}>
+                  180 employees
+                </div>
+              </div>
+
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                  <div style={{ width: '16px', height: '16px', borderRadius: '4px', backgroundColor: '#76C044', boxShadow: '0 2px 4px rgba(118, 192, 68, 0.3)' }} />
+                  <span style={{ fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.text, fontWeight: 500 }}>
+                    New York Sales
+                  </span>
+                </div>
+                <div style={{ paddingLeft: '24px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '20px', fontWeight: 600, color: '#76C044' }}>
+                  40%
+                </div>
+                <div style={{ paddingLeft: '24px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '12px', color: COLORS.textLight }}>
+                  120 employees
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ textAlign: 'center', marginTop: '20px', fontSize: '13px', color: COLORS.primary, fontFamily: TYPOGRAPHY.fontFamily, fontWeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+            <span>Click to view details</span>
+            <span>→</span>
+          </div>
         </div>
       </div>
+
+      {/* Punch In Modal */}
+      {showPunchInModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+          }}
+          onClick={() => setShowPunchInModal(false)}
+        >
+          <div
+            style={{
+              backgroundColor: COLORS.white,
+              borderRadius: '12px',
+              padding: '32px',
+              maxWidth: '500px',
+              width: '90%',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 style={{ marginTop: 0, marginBottom: '24px', fontFamily: TYPOGRAPHY.fontFamily, color: COLORS.primary }}>
+              Punch In
+            </h2>
+            
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.primary }}>
+                Date*
+              </label>
+              <input
+                type="date"
+                defaultValue={new Date().toISOString().split('T')[0]}
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  border: `1px solid ${COLORS.border}`,
+                  borderRadius: '6px',
+                  fontFamily: TYPOGRAPHY.fontFamily,
+                  boxSizing: 'border-box',
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.primary }}>
+                Time*
+              </label>
+              <input
+                type="time"
+                defaultValue={new Date().toTimeString().slice(0, 5)}
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  border: `1px solid ${COLORS.border}`,
+                  borderRadius: '6px',
+                  fontFamily: TYPOGRAPHY.fontFamily,
+                  boxSizing: 'border-box',
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.text }}>
+                Note
+              </label>
+              <textarea
+                placeholder="Type here"
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  border: `1px solid ${COLORS.border}`,
+                  borderRadius: '6px',
+                  fontFamily: TYPOGRAPHY.fontFamily,
+                  boxSizing: 'border-box',
+                  minHeight: '100px',
+                  resize: 'vertical',
+                }}
+              />
+            </div>
+
+            <div style={{ fontSize: '12px', color: COLORS.textLight, marginBottom: '20px', fontFamily: TYPOGRAPHY.fontFamily }}>
+              * Required
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button
+                onClick={() => setShowPunchInModal(false)}
+                style={{
+                  padding: '10px 24px',
+                  borderRadius: '6px',
+                  border: `1px solid ${COLORS.border}`,
+                  backgroundColor: COLORS.white,
+                  color: COLORS.text,
+                  fontFamily: TYPOGRAPHY.fontFamily,
+                  cursor: 'pointer',
+                  fontSize: '15px',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setPunchedIn(true);
+                  setShowPunchInModal(false);
+                }}
+                style={{
+                  padding: '10px 24px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  backgroundColor: '#76C044',
+                  color: COLORS.white,
+                  fontFamily: TYPOGRAPHY.fontFamily,
+                  cursor: 'pointer',
+                  fontSize: '15px',
+                  fontWeight: 500,
+                }}
+              >
+                In
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Punch Out Modal */}
+      {showPunchOutModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+          }}
+          onClick={() => setShowPunchOutModal(false)}
+        >
+          <div
+            style={{
+              backgroundColor: COLORS.white,
+              borderRadius: '12px',
+              padding: '32px',
+              maxWidth: '500px',
+              width: '90%',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 style={{ marginTop: 0, marginBottom: '16px', fontFamily: TYPOGRAPHY.fontFamily, color: COLORS.primary }}>
+              Punch Out
+            </h2>
+            
+            <div style={{ marginBottom: '20px', padding: '12px', backgroundColor: COLORS.lightBg, borderRadius: '6px' }}>
+              <div style={{ fontSize: '14px', color: COLORS.textLight, marginBottom: '4px', fontFamily: TYPOGRAPHY.fontFamily }}>
+                Punched in time
+              </div>
+              <div style={{ fontSize: '16px', color: COLORS.primary, fontFamily: TYPOGRAPHY.fontFamily, fontWeight: 500 }}>
+                {new Date().toISOString().split('T')[0]} - {new Date().toTimeString().slice(0, 5)} (GMT +05:30)
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.primary }}>
+                Date*
+              </label>
+              <input
+                type="date"
+                defaultValue={new Date().toISOString().split('T')[0]}
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  border: `1px solid ${COLORS.border}`,
+                  borderRadius: '6px',
+                  fontFamily: TYPOGRAPHY.fontFamily,
+                  boxSizing: 'border-box',
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.primary }}>
+                Time*
+              </label>
+              <input
+                type="time"
+                defaultValue={new Date().toTimeString().slice(0, 5)}
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  border: `1px solid ${COLORS.border}`,
+                  borderRadius: '6px',
+                  fontFamily: TYPOGRAPHY.fontFamily,
+                  boxSizing: 'border-box',
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.text }}>
+                Note
+              </label>
+              <textarea
+                placeholder="Type here"
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  border: `1px solid ${COLORS.border}`,
+                  borderRadius: '6px',
+                  fontFamily: TYPOGRAPHY.fontFamily,
+                  boxSizing: 'border-box',
+                  minHeight: '100px',
+                  resize: 'vertical',
+                }}
+              />
+            </div>
+
+            <div style={{ fontSize: '12px', color: COLORS.textLight, marginBottom: '20px', fontFamily: TYPOGRAPHY.fontFamily }}>
+              * Required
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button
+                onClick={() => setShowPunchOutModal(false)}
+                style={{
+                  padding: '10px 24px',
+                  borderRadius: '6px',
+                  border: `1px solid ${COLORS.border}`,
+                  backgroundColor: COLORS.white,
+                  color: COLORS.text,
+                  fontFamily: TYPOGRAPHY.fontFamily,
+                  cursor: 'pointer',
+                  fontSize: '15px',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setPunchedIn(false);
+                  setShowPunchOutModal(false);
+                }}
+                style={{
+                  padding: '10px 24px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  backgroundColor: '#76C044',
+                  color: COLORS.white,
+                  fontFamily: TYPOGRAPHY.fontFamily,
+                  cursor: 'pointer',
+                  fontSize: '15px',
+                  fontWeight: 500,
+                }}
+              >
+                Out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -1162,51 +1709,6 @@ const App: React.FC = () => {
             alignItems: 'center', 
             gap: '20px' 
           }}>
-            {/* Messages Icon with Notification */}
-            <div style={{
-              position: 'relative',
-              cursor: 'pointer',
-              padding: '8px',
-              borderRadius: '6px',
-              transition: 'background-color 0.2s'
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = COLORS.lightBg}
-            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-            >
-              <MessageIcon />
-              <div style={{
-                position: 'absolute',
-                top: '4px',
-                right: '4px',
-                width: '16px',
-                height: '16px',
-                borderRadius: '50%',
-                backgroundColor: '#dc3545',
-                color: COLORS.white,
-                fontSize: '10px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontWeight: 600,
-                fontFamily: TYPOGRAPHY.fontFamily
-              }}>
-                2
-              </div>
-            </div>
-
-            {/* Clock Icon */}
-            <div style={{
-              cursor: 'pointer',
-              padding: '8px',
-              borderRadius: '6px',
-              transition: 'background-color 0.2s'
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = COLORS.lightBg}
-            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-            >
-              <HeaderClockIcon />
-            </div>
-
             {/* Company Name */}
             <div style={{
               fontSize: TYPOGRAPHY.textImportant.fontSize,

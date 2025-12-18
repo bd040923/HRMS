@@ -4,14 +4,13 @@
  */
 
 import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useSidebar } from '../context/SidebarContext';
 
 const COLORS = {
   primary: '#78176b',
   primaryHover: '#590a4f',
   lightBg: '#faf3ff',
-  lightBgAlt: '#fffafe',
   white: '#ffffff',
   text: '#333333',
   textLight: '#666666',
@@ -20,8 +19,6 @@ const COLORS = {
 
 const TYPOGRAPHY = {
   fontFamily: "'Segoe UI', Arial, sans-serif",
-  textImportant: { fontSize: '16px' },
-  textNote: { fontSize: '14px' },
 };
 
 interface SidebarItem {
@@ -33,16 +30,23 @@ interface SidebarItem {
 
 const Sidebar: React.FC = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const { collapsed, setCollapsed } = useSidebar();
   const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  
+  // Collapse sidebar by default on mount
+  React.useEffect(() => {
+    setCollapsed(true);
+  }, [setCollapsed]);
 
   const menuItems: SidebarItem[] = [
-    { name: 'Admin', path: '/admin/users', icon: '⚙️' },
+    { name: 'Admin', path: '/admin/users', icon: '👥' },
     { name: 'PIM', path: '/employees', icon: '👤' },
     { name: 'Leave', path: '/leave', icon: '📋' },
     { name: 'Time', path: '/attendance', icon: '⏰' },
     { name: 'Recruitment', path: '/recruitment', icon: '🔍' },
-    { name: 'My Info', path: '/my-info', icon: 'ℹ️' },
+    { name: 'My Info', path: '/my-info', icon: '👤' },
     { name: 'Performance', path: '/performance', icon: '⭐' },
     { name: 'Dashboard', path: '/dashboard', icon: '🏠' },
     { name: 'Directory', path: '/directory', icon: '📂' },
@@ -85,7 +89,6 @@ const Sidebar: React.FC = () => {
       backgroundColor: COLORS.white,
       minHeight: '100vh',
       borderRight: `1px solid ${COLORS.border}`,
-      transition: 'width 0.3s ease',
       position: 'fixed',
       left: 0,
       top: 0,
@@ -94,25 +97,43 @@ const Sidebar: React.FC = () => {
       flexDirection: 'column',
       overflowY: 'auto',
       overflowX: 'hidden',
+      boxShadow: '2px 0 4px rgba(0,0,0,0.05)',
     }}>
-      {/* Logo */}
+      {/* Logo and Toggle */}
       <div style={{
         padding: '16px',
         borderBottom: `1px solid ${COLORS.border}`,
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'space-between'
+        justifyContent: collapsed ? 'center' : 'space-between',
       }}>
         {!collapsed && (
-          <Link to="/dashboard" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{
-              color: COLORS.primary,
-              fontSize: '1.25rem',
-              fontFamily: TYPOGRAPHY.fontFamily,
-              fontWeight: 600,
-            }}>
-              arithwise_hrms
-            </span>
+          <Link to="/dashboard" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center' }}>
+            <img 
+              src="../images/arithwise logo.webp"
+              alt="arithwise_hrms" 
+              style={{ 
+                height: '40px', 
+                width: 'auto',
+                maxWidth: '180px',
+                objectFit: 'contain'
+              }}
+              onError={(e) => {
+                // Fallback to text if image doesn't load
+                const target = e.target as HTMLImageElement;
+                target.style.display = 'none';
+                const parent = target.parentElement;
+                if (parent && !parent.querySelector('span')) {
+                  const fallback = document.createElement('span');
+                  fallback.textContent = 'arithwise_hrms';
+                  fallback.style.color = COLORS.primary;
+                  fallback.style.fontSize = '1.25rem';
+                  fallback.style.fontFamily = TYPOGRAPHY.fontFamily;
+                  fallback.style.fontWeight = '600';
+                  parent.appendChild(fallback);
+                }
+              }}
+            />
           </Link>
         )}
         <button
@@ -123,18 +144,66 @@ const Sidebar: React.FC = () => {
             cursor: 'pointer',
             fontSize: '18px',
             color: COLORS.text,
+            padding: '4px',
           }}
         >
           {collapsed ? '☰' : '×'}
         </button>
       </div>
 
+      {/* Search */}
+      {!collapsed && (
+        <div style={{ padding: '16px' }}>
+          <div style={{
+            position: 'relative',
+            display: 'flex',
+            alignItems: 'center',
+          }}>
+            <span style={{
+              position: 'absolute',
+              left: '12px',
+              fontSize: '18px',
+              color: COLORS.textLight,
+            }}>
+              🔍
+            </span>
+            <input
+              type="text"
+              placeholder="Search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '10px 10px 10px 40px',
+                border: `1px solid ${COLORS.border}`,
+                borderRadius: '6px',
+                fontSize: '14px',
+                fontFamily: TYPOGRAPHY.fontFamily,
+                boxSizing: 'border-box',
+                outline: 'none',
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.borderColor = COLORS.primary;
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.borderColor = COLORS.border;
+              }}
+            />
+          </div>
+        </div>
+      )}
+
       {/* Menu Items */}
       <nav style={{ 
         flex: 1, 
         padding: '8px 0',
       }}>
-        {menuItems.map((item) => {
+        {menuItems
+          .filter(item => 
+            searchQuery === '' || 
+            item.name.toLowerCase().includes(searchQuery.toLowerCase())
+          )
+          .map((item) => {
           const active = isActive(item.path);
           const hasSubmenu = item.submenu && item.submenu.length > 0;
           const submenuExpanded = isSubmenuExpanded(item.name);
@@ -149,18 +218,20 @@ const Sidebar: React.FC = () => {
                     width: '100%',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: collapsed ? '12px 18px' : '12px 16px',
+                    justifyContent: collapsed ? 'center' : 'space-between',
+                    padding: collapsed ? '12px 18px' : '12px 20px',
                     color: active ? COLORS.white : COLORS.text,
                     backgroundColor: active ? COLORS.primary : 'transparent',
                     textDecoration: 'none',
                     transition: 'all 0.2s',
-                    borderLeft: active ? `4px solid ${COLORS.primaryHover}` : '4px solid transparent',
-                    fontFamily: TYPOGRAPHY.fontFamily,
-                    fontSize: TYPOGRAPHY.textNote.fontSize,
                     border: 'none',
                     cursor: 'pointer',
                     textAlign: 'left',
+                    fontFamily: TYPOGRAPHY.fontFamily,
+                    fontSize: '15px',
+                    fontWeight: active ? 500 : 400,
+                    borderRadius: active ? '25px 0 0 25px' : '0',
+                    marginRight: active ? '0' : '0',
                   }}
                   onMouseEnter={(e) => {
                     if (!active) {
@@ -178,7 +249,7 @@ const Sidebar: React.FC = () => {
                     {!collapsed && <span>{item.name}</span>}
                   </div>
                   {!collapsed && hasSubmenu && (
-                    <span style={{ fontSize: '12px' }}>
+                    <span style={{ fontSize: '10px' }}>
                       {submenuExpanded ? '▼' : '▶'}
                     </span>
                   )}
@@ -189,15 +260,17 @@ const Sidebar: React.FC = () => {
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    padding: collapsed ? '12px 18px' : '12px 16px',
+                    justifyContent: collapsed ? 'center' : 'flex-start',
+                    padding: collapsed ? '12px 18px' : '12px 20px',
                     color: active ? COLORS.white : COLORS.text,
                     backgroundColor: active ? COLORS.primary : 'transparent',
                     textDecoration: 'none',
                     transition: 'all 0.2s',
-                    borderLeft: active ? `4px solid ${COLORS.primaryHover}` : '4px solid transparent',
                     fontFamily: TYPOGRAPHY.fontFamily,
-                    fontSize: TYPOGRAPHY.textNote.fontSize,
+                    fontSize: '15px',
+                    fontWeight: active ? 500 : 400,
                     gap: '12px',
+                    borderRadius: active ? '25px 0 0 25px' : '0',
                   }}
                   onMouseEnter={(e) => {
                     if (!active) {
@@ -218,9 +291,8 @@ const Sidebar: React.FC = () => {
               {/* Submenu Items */}
               {hasSubmenu && submenuExpanded && !collapsed && (
                 <div style={{
-                  backgroundColor: COLORS.lightBgAlt,
-                  borderLeft: `3px solid ${COLORS.primary}`,
-                  marginLeft: '16px',
+                  backgroundColor: COLORS.lightBg,
+                  paddingLeft: '20px',
                 }}>
                   {item.submenu!.map((subItem) => {
                     const subActive = location.pathname === subItem.path;
@@ -230,13 +302,13 @@ const Sidebar: React.FC = () => {
                         to={subItem.path}
                         style={{
                           display: 'block',
-                          padding: '10px 16px 10px 40px',
+                          padding: '10px 20px 10px 50px',
                           color: subActive ? COLORS.primary : COLORS.textLight,
                           backgroundColor: subActive ? COLORS.white : 'transparent',
                           textDecoration: 'none',
                           transition: 'all 0.2s',
                           fontFamily: TYPOGRAPHY.fontFamily,
-                          fontSize: TYPOGRAPHY.textNote.fontSize,
+                          fontSize: '14px',
                           fontWeight: subActive ? 500 : 400,
                         }}
                         onMouseEnter={(e) => {

@@ -786,6 +786,28 @@ class ApiService {
   async deleteMembership(id: number) {
     return this.request<any>(`/memberships/${id}`, { method: 'DELETE' });
   }
+
+  // ============================================================================
+  // CORPORATE BRANDING API
+  // ============================================================================
+  async getCorporateBranding() {
+    return this.request<any>('/corporate-branding');
+  }
+
+  async updateCorporateBranding(data: {
+    primary_color?: string;
+    secondary_color?: string;
+    primary_font_color?: string;
+    secondary_font_color?: string;
+    gradient_color1?: string;
+    gradient_color2?: string;
+    social_media_enabled?: boolean;
+    client_logo_path?: string;
+    client_banner_path?: string;
+    login_banner_path?: string;
+  }) {
+    return this.request<any>('/corporate-branding', { method: 'PUT', body: JSON.stringify(data) });
+  }
 }
 
 export const apiService = new ApiService(API_BASE_URL);

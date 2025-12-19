@@ -3372,6 +3372,164 @@ app.delete('/api/memberships/:id', async (req, res) => {
   }
 });
 
+// ============================================================================
+// CORPORATE BRANDING API
+// ============================================================================
+app.get('/api/corporate-branding', async (req, res) => {
+  try {
+    // First check if table exists
+    const tableCheck = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'hrms_data' 
+        AND table_name = 'corporate_branding'
+      )
+    `);
+    
+    if (!tableCheck.rows[0].exists) {
+      // Return default values if table doesn't exist
+      return res.json({
+        id: null,
+        primary_color: '#78176b',
+        secondary_color: '#590a4f',
+        primary_font_color: '#ffffff',
+        secondary_font_color: '#222222',
+        gradient_color1: '#faf3ff',
+        gradient_color2: '#fffafe',
+        social_media_enabled: true,
+        client_logo_path: null,
+        client_banner_path: null,
+        login_banner_path: null
+      });
+    }
+
+    const result = await pool.query(
+      'SELECT * FROM hrms_data.corporate_branding WHERE id = 1 LIMIT 1'
+    );
+    
+    if (result.rows.length === 0) {
+      // Return default values if no record exists
+      return res.json({
+        id: null,
+        primary_color: '#78176b',
+        secondary_color: '#590a4f',
+        primary_font_color: '#ffffff',
+        secondary_font_color: '#222222',
+        gradient_color1: '#faf3ff',
+        gradient_color2: '#fffafe',
+        social_media_enabled: true,
+        client_logo_path: null,
+        client_banner_path: null,
+        login_banner_path: null
+      });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error fetching corporate branding:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/corporate-branding', async (req, res) => {
+  console.log('📥 PUT /api/corporate-branding received:', req.body);
+  try {
+    // First check if table exists
+    const tableCheck = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'hrms_data' 
+        AND table_name = 'corporate_branding'
+      )
+    `);
+    
+    if (!tableCheck.rows[0].exists) {
+      console.error('❌ Table hrms_data.corporate_branding does not exist!');
+      return res.status(500).json({ 
+        error: 'Table does not exist',
+        message: 'Please run the SQL script to create the corporate_branding table',
+        hint: 'Run: orangehrm/database/CREATE_CORPORATE_BRANDING_TABLE.sql'
+      });
+    }
+
+    const {
+      primary_color,
+      secondary_color,
+      primary_font_color,
+      secondary_font_color,
+      gradient_color1,
+      gradient_color2,
+      social_media_enabled,
+      client_logo_path,
+      client_banner_path,
+      login_banner_path
+    } = req.body;
+
+    // Check if record exists
+    const checkResult = await pool.query('SELECT id FROM hrms_data.corporate_branding WHERE id = 1');
+    
+    if (checkResult.rows.length === 0) {
+      // Create new record
+      const result = await pool.query(
+        `INSERT INTO hrms_data.corporate_branding (
+          id, primary_color, secondary_color, primary_font_color, secondary_font_color,
+          gradient_color1, gradient_color2, social_media_enabled,
+          client_logo_path, client_banner_path, login_banner_path
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+        [
+          1,
+          primary_color || '#78176b',
+          secondary_color || '#590a4f',
+          primary_font_color || '#ffffff',
+          secondary_font_color || '#222222',
+          gradient_color1 || '#faf3ff',
+          gradient_color2 || '#fffafe',
+          social_media_enabled !== undefined ? social_media_enabled : true,
+          client_logo_path || null,
+          client_banner_path || null,
+          login_banner_path || null
+        ]
+      );
+      console.log('✅ Corporate branding created:', result.rows[0]);
+      res.json(result.rows[0]);
+    } else {
+      // Update existing record
+      const result = await pool.query(
+        `UPDATE hrms_data.corporate_branding SET
+          primary_color = $1,
+          secondary_color = $2,
+          primary_font_color = $3,
+          secondary_font_color = $4,
+          gradient_color1 = $5,
+          gradient_color2 = $6,
+          social_media_enabled = $7,
+          client_logo_path = $8,
+          client_banner_path = $9,
+          login_banner_path = $10,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = 1 RETURNING *`,
+        [
+          primary_color || '#78176b',
+          secondary_color || '#590a4f',
+          primary_font_color || '#ffffff',
+          secondary_font_color || '#222222',
+          gradient_color1 || '#faf3ff',
+          gradient_color2 || '#fffafe',
+          social_media_enabled !== undefined ? social_media_enabled : true,
+          client_logo_path || null,
+          client_banner_path || null,
+          login_banner_path || null
+        ]
+      );
+      console.log('✅ Corporate branding updated:', result.rows[0]);
+      res.json(result.rows[0]);
+    }
+  } catch (error) {
+    console.error('❌ Error saving corporate branding:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Users Management
 app.get('/api/users', async (req, res) => {
   try {

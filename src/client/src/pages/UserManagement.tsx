@@ -64,13 +64,14 @@ const UserManagement: React.FC = () => {
         setError(null);
         const data = await apiService.getUsers();
         // Map API response to User interface
+        // Map 'user' from database to 'employee' for frontend display
         const mappedUsers: User[] = data.map((u: any) => ({
           id: u.id,
           username: u.username,
           email: u.email,
           firstName: u.first_name,
           lastName: u.last_name,
-          role: u.role as 'admin' | 'employee' | 'manager',
+          role: (u.role === 'user' ? 'employee' : u.role) as 'admin' | 'employee' | 'manager',
           status: (u.status === 'active' ? 'enabled' : 'disabled') as 'enabled' | 'disabled',
           employeeName: u.employee_name || `${u.first_name} ${u.last_name}`
         }));
@@ -147,12 +148,14 @@ const UserManagement: React.FC = () => {
     try {
       if (editingItem) {
         // Update existing user
+        // Map 'employee' to 'user' for database (database constraint only allows 'admin', 'user', 'manager')
+        const dbRole = formData.role === 'employee' ? 'user' : formData.role;
         const updateData: any = {
           username: formData.username,
           email: formData.email,
           first_name: formData.firstName,
           last_name: formData.lastName,
-          role: formData.role,
+          role: dbRole,
           status: editingItem.status === 'enabled' ? 'active' : 'inactive' // Map 'enabled' to 'active' for API
         };
         if (formData.password) {
@@ -161,13 +164,14 @@ const UserManagement: React.FC = () => {
         const updated = await apiService.updateUser(editingItem.id, updateData);
         
         // Map API response back to User interface
+        // Map 'user' from database to 'employee' for frontend display
         const updatedUser: User = {
           id: updated.id,
           username: updated.username,
           email: updated.email,
           firstName: updated.first_name,
           lastName: updated.last_name,
-          role: updated.role as 'admin' | 'employee' | 'manager',
+          role: (updated.role === 'user' ? 'employee' : updated.role) as 'admin' | 'employee' | 'manager',
           status: updated.status === 'active' ? 'enabled' : 'disabled',
           employeeName: updated.employee_name || `${updated.first_name} ${updated.last_name}`
         };
@@ -176,24 +180,27 @@ const UserManagement: React.FC = () => {
         alert('User updated successfully');
       } else {
         // Create new user
+        // Map 'employee' to 'user' for database (database constraint only allows 'admin', 'user', 'manager')
+        const dbRole = formData.role === 'employee' ? 'user' : formData.role;
         const newUser = await apiService.createUser({
           username: formData.username,
           email: formData.email,
           password: formData.password,
           first_name: formData.firstName,
           last_name: formData.lastName,
-          role: formData.role,
+          role: dbRole,
           status: 'active'
         });
         
         // Map API response back to User interface
+        // Map 'user' from database to 'employee' for frontend display
         const mappedUser: User = {
           id: newUser.id,
           username: newUser.username,
           email: newUser.email,
           firstName: newUser.first_name,
           lastName: newUser.last_name,
-          role: newUser.role as 'admin' | 'employee' | 'manager',
+          role: (newUser.role === 'user' ? 'employee' : newUser.role) as 'admin' | 'employee' | 'manager',
           status: newUser.status === 'active' ? 'enabled' : 'disabled',
           employeeName: newUser.employee_name || `${newUser.first_name} ${newUser.last_name}`
         };

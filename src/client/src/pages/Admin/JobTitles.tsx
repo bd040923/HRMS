@@ -3,9 +3,10 @@
  * Copyright (C) 2024 Arithwise Inc.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import AdminLayout from './AdminLayout';
 import ProtectedRoute from '../../components/ProtectedRoute';
+import { apiService } from '../../services/api';
 
 const COLORS = {
   primary: '#78176b',
@@ -31,20 +32,34 @@ interface JobTitle {
 }
 
 const JobTitles: React.FC = () => {
-  const [jobTitles, setJobTitles] = useState<JobTitle[]>([
-    { id: 1, title: 'Account Assistant', description: '' },
-    { id: 2, title: 'Automaton Tester', description: '' },
-    { id: 3, title: 'Chief Executive Officer', description: '' },
-    { id: 4, title: 'Chief Financial Officer', description: '' },
-    { id: 5, title: 'Chief Technical Officer', description: '' },
-    { id: 6, title: 'Content Specialist', description: '' },
-    { id: 7, title: 'Customer Success Manager', description: '' },
-    { id: 8, title: 'Database Administrator', description: '' },
-  ]);
+  const [jobTitles, setJobTitles] = useState<JobTitle[]>([]);
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingItem, setEditingItem] = useState<JobTitle | null>(null);
   const [formData, setFormData] = useState({ title: '', description: '' });
+  const [loading, setLoading] = useState(true);
+
+  // Fetch job titles from API
+  useEffect(() => {
+    fetchJobTitles();
+  }, []);
+
+  const fetchJobTitles = async () => {
+    try {
+      setLoading(true);
+      const data = await apiService.getJobTitles();
+      setJobTitles(data.map((item: any) => ({
+        id: item.id,
+        title: item.title,
+        description: item.description || ''
+      })));
+    } catch (error) {
+      console.error('Error fetching job titles:', error);
+      alert('Failed to fetch job titles');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
@@ -60,10 +75,17 @@ const JobTitles: React.FC = () => {
     );
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = async (id: number) => {
     if (window.confirm('Are you sure you want to delete this job title?')) {
-      setJobTitles(jobTitles.filter(j => j.id !== id));
-      setSelectedItems(selectedItems.filter(i => i !== id));
+      try {
+        await apiService.deleteJobTitle(id);
+        setJobTitles(jobTitles.filter(j => j.id !== id));
+        setSelectedItems(selectedItems.filter(i => i !== id));
+        alert('Job title deleted successfully');
+      } catch (error: any) {
+        console.error('Error deleting job title:', error);
+        alert(`Failed to delete job title: ${error.message || 'Unknown error'}`);
+      }
     }
   };
 
@@ -79,19 +101,44 @@ const JobTitles: React.FC = () => {
     setShowAddModal(true);
   };
 
-  const handleSave = () => {
-    if (editingItem) {
-      setJobTitles(jobTitles.map(j => 
-        j.id === editingItem.id 
-          ? { ...j, title: formData.title, description: formData.description }
-          : j
-      ));
-    } else {
-      const newId = Math.max(...jobTitles.map(j => j.id), 0) + 1;
-      setJobTitles([...jobTitles, { id: newId, title: formData.title, description: formData.description }]);
+  const handleSave = async () => {
+    if (!formData.title.trim()) {
+      alert('Job title is required');
+      return;
     }
-    setShowAddModal(false);
-    setFormData({ title: '', description: '' });
+
+    try {
+      if (editingItem) {
+        // Update existing job title
+        const updated = await apiService.updateJobTitle(editingItem.id, {
+          title: formData.title,
+          description: formData.description
+        });
+        setJobTitles(jobTitles.map(j => 
+          j.id === editingItem.id 
+            ? { id: updated.id, title: updated.title, description: updated.description || '' }
+            : j
+        ));
+        alert('Job title updated successfully');
+      } else {
+        // Create new job title
+        const newJobTitle = await apiService.createJobTitle({
+          title: formData.title,
+          description: formData.description
+        });
+        setJobTitles([...jobTitles, { 
+          id: newJobTitle.id, 
+          title: newJobTitle.title, 
+          description: newJobTitle.description || '' 
+        }]);
+        alert('Job title created successfully');
+      }
+      setShowAddModal(false);
+      setFormData({ title: '', description: '' });
+    } catch (error: any) {
+      console.error('Error saving job title:', error);
+      alert(`Failed to save job title: ${error.message || 'Unknown error'}`);
+    }
   };
 
   return (
@@ -116,7 +163,7 @@ const JobTitles: React.FC = () => {
               fontFamily: TYPOGRAPHY.fontFamily,
               color: COLORS.textLight
             }}>
-              ({jobTitles.length}) Records Found
+              {loading ? 'Loading...' : `(${jobTitles.length}) Records Found`}
             </div>
             <button
               onClick={handleAdd}
@@ -189,7 +236,20 @@ const JobTitles: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {jobTitles.map((item) => (
+                {loading ? (
+                  <tr>
+                    <td colSpan={3} style={{ padding: '20px', textAlign: 'center', color: COLORS.textLight }}>
+                      Loading job titles...
+                    </td>
+                  </tr>
+                ) : jobTitles.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} style={{ padding: '20px', textAlign: 'center', color: COLORS.textLight }}>
+                      No job titles found. Click "+ Add" to create one.
+                    </td>
+                  </tr>
+                ) : (
+                  jobTitles.map((item) => (
                   <tr
                     key={item.id}
                     style={{
@@ -252,7 +312,8 @@ const JobTitles: React.FC = () => {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  ))
+                )}
               </tbody>
             </table>
           </div>

@@ -26,8 +26,15 @@ class ApiService {
       });
 
       if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Request failed' }));
-        throw new Error(error.error || `HTTP error! status: ${response.status}`);
+        let errorMessage = `HTTP error! status: ${response.status}`;
+        try {
+          const error = await response.json();
+          errorMessage = error.error || error.message || errorMessage;
+        } catch (e) {
+          // If response is not JSON, use status text
+          errorMessage = response.statusText || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
 
       return await response.json();
@@ -40,6 +47,18 @@ class ApiService {
   // Job Titles
   async getJobTitles() {
     return this.request<any[]>('/job-titles');
+  }
+
+  async createJobTitle(data: { title: string; description?: string }) {
+    return this.request<any>('/job-titles', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async updateJobTitle(id: number, data: { title: string; description?: string; status?: string }) {
+    return this.request<any>(`/job-titles/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+
+  async deleteJobTitle(id: number) {
+    return this.request<any>(`/job-titles/${id}`, { method: 'DELETE' });
   }
 
   // Vacancies

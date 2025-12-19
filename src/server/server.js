@@ -142,6 +142,14 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Request logging middleware (for debugging)
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api')) {
+    console.log(`📨 ${req.method} ${req.path}`);
+  }
+  next();
+});
+
 // Validate and prepare database configuration
 // Support both DB_PASS and DB_PASSWORD for compatibility
 let dbPassword = process.env.DB_PASS || process.env.DB_PASSWORD || '';
@@ -322,6 +330,60 @@ app.get('/api/job-titles', async (req, res) => {
       message: error.message,
       hint: 'Check if job_titles table exists in hrms_data schema'
     });
+  }
+});
+
+app.post('/api/job-titles', async (req, res) => {
+  console.log('📥 POST /api/job-titles received:', req.body);
+  try {
+    const { title, description } = req.body;
+    if (!title) {
+      return res.status(400).json({ error: 'Job title is required' });
+    }
+    const result = await pool.query(
+      'INSERT INTO job_titles (title, description, status) VALUES ($1, $2, $3) RETURNING id, title, description, status',
+      [title, description || '', 'active']
+    );
+    console.log('✅ Job title created:', result.rows[0]);
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('❌ Error creating job title:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/job-titles/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, description, status } = req.body;
+    if (!title) {
+      return res.status(400).json({ error: 'Job title is required' });
+    }
+    const result = await pool.query(
+      'UPDATE job_titles SET title = $1, description = $2, status = COALESCE($3, status) WHERE id = $4 RETURNING id, title, description, status',
+      [title, description || '', status, id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Job title not found' });
+    }
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating job title:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/job-titles/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query('DELETE FROM job_titles WHERE id = $1 RETURNING id', [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Job title not found' });
+    }
+    res.json({ message: 'Job title deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting job title:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 
@@ -2437,6 +2499,9 @@ app.use((req, res) => {
         'GET /api/diagnostic',
         'GET /api/test',
         'GET /api/job-titles',
+        'POST /api/job-titles',
+        'PUT /api/job-titles/:id',
+        'DELETE /api/job-titles/:id',
         'GET /api/vacancies',
         'GET /api/candidates',
         'GET /api/employees'
@@ -2478,6 +2543,19 @@ npm run serve
   }
 });
 
+// Log all registered routes for debugging
+if (process.env.NODE_ENV !== 'production') {
+  console.log('\n📋 Registered API Routes:');
+  const routes = [];
+  app._router.stack.forEach((middleware) => {
+    if (middleware.route) {
+      const methods = Object.keys(middleware.route.methods).join(', ').toUpperCase();
+      routes.push(`${methods} ${middleware.route.path}`);
+    }
+  });
+  routes.filter(r => r.includes('/api/job-titles')).forEach(r => console.log(`   ✅ ${r}`));
+}
+
 // Start server with error handling
 const server = app.listen(PORT, () => {
   console.log(`🚀 Arithwise HRM server running on port ${PORT}`);
@@ -2485,6 +2563,11 @@ const server = app.listen(PORT, () => {
   console.log(`🌐 Frontend: http://localhost:${PORT}`);
   console.log(`🔍 Diagnostic: http://localhost:${PORT}/api/diagnostic`);
   console.log(`❤️  Health check: http://localhost:${PORT}/api/health`);
+  console.log(`\n📝 Job Titles API:`);
+  console.log(`   GET    /api/job-titles`);
+  console.log(`   POST   /api/job-titles`);
+  console.log(`   PUT    /api/job-titles/:id`);
+  console.log(`   DELETE /api/job-titles/:id`);
   if (fs.existsSync(frontendDistPath)) {
     console.log(`✅ Frontend is being served from backend`);
   } else {

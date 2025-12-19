@@ -3,9 +3,10 @@
  * Copyright (C) 2024 Arithwise Inc.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import AdminLayout from './AdminLayout';
 import ProtectedRoute from '../../components/ProtectedRoute';
+import { apiService } from '../../services/api';
 
 const COLORS = {
   primary: '#78176b',
@@ -28,20 +29,33 @@ const TYPOGRAPHY = {
 
 interface EducationLevel {
   id: number;
-  level: string;
+  name: string;
 }
 
 const Education: React.FC = () => {
-  const [educationLevels, setEducationLevels] = useState<EducationLevel[]>([
-    { id: 1, level: "Bachelor's Degree" },
-    { id: 2, level: 'College Undergraduate' },
-    { id: 3, level: 'High School Diploma' },
-    { id: 4, level: "Master's Degree" },
-  ]);
+  const [educationLevels, setEducationLevels] = useState<EducationLevel[]>([]);
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingItem, setEditingItem] = useState<EducationLevel | null>(null);
   const [formData, setFormData] = useState({ level: '' });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchEducationLevels();
+  }, []);
+
+  const fetchEducationLevels = async () => {
+    setLoading(true);
+    try {
+      const data = await apiService.getEducationLevels();
+      setEducationLevels(data || []);
+    } catch (error) {
+      console.error('Error fetching education levels:', error);
+      alert('Failed to load education levels. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
@@ -57,10 +71,17 @@ const Education: React.FC = () => {
     );
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = async (id: number) => {
     if (window.confirm('Are you sure you want to delete this education level?')) {
-      setEducationLevels(educationLevels.filter(e => e.id !== id));
-      setSelectedItems(selectedItems.filter(i => i !== id));
+      try {
+        await apiService.deleteEducationLevel(id);
+        setEducationLevels(educationLevels.filter(e => e.id !== id));
+        setSelectedItems(selectedItems.filter(i => i !== id));
+        alert('Education level deleted successfully!');
+      } catch (error: any) {
+        console.error('Error deleting education level:', error);
+        alert(`Failed to delete education level: ${error.message || 'Unknown error'}`);
+      }
     }
   };
 
@@ -72,25 +93,36 @@ const Education: React.FC = () => {
 
   const handleEdit = (item: EducationLevel) => {
     setEditingItem(item);
-    setFormData({ level: item.level });
+    setFormData({ level: item.name });
     setShowAddModal(true);
   };
 
-  const handleSave = () => {
-    if (!formData.level.trim()) return;
-    
-    if (editingItem) {
-      setEducationLevels(educationLevels.map(e => 
-        e.id === editingItem.id 
-          ? { ...e, level: formData.level }
-          : e
-      ));
-    } else {
-      const newId = Math.max(...educationLevels.map(e => e.id), 0) + 1;
-      setEducationLevels([...educationLevels, { id: newId, level: formData.level }]);
+  const handleSave = async () => {
+    if (!formData.level.trim()) {
+      alert('Education level is required');
+      return;
     }
-    setShowAddModal(false);
-    setFormData({ level: '' });
+    
+    try {
+      if (editingItem) {
+        const updated = await apiService.updateEducationLevel(editingItem.id, {
+          name: formData.level
+        });
+        setEducationLevels(educationLevels.map(e => e.id === editingItem.id ? updated : e));
+        alert('Education level updated successfully!');
+      } else {
+        const newLevel = await apiService.createEducationLevel({
+          name: formData.level
+        });
+        setEducationLevels([...educationLevels, newLevel]);
+        alert('Education level created successfully!');
+      }
+      setShowAddModal(false);
+      setFormData({ level: '' });
+    } catch (error: any) {
+      console.error('Error saving education level:', error);
+      alert(`Failed to save education level: ${error.message || 'Unknown error'}`);
+    }
   };
 
   return (
@@ -174,18 +206,31 @@ const Education: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {educationLevels.map(edu => (
-                  <tr key={edu.id} style={{ borderBottom: `1px solid ${COLORS.border}`, backgroundColor: COLORS.white }}>
-                    <td style={{ padding: '16px' }}>
-                      <input
-                        type="checkbox"
-                        checked={selectedItems.includes(edu.id)}
-                        onChange={() => handleSelectItem(edu.id)}
-                      />
+                {loading ? (
+                  <tr>
+                    <td colSpan={3} style={{ padding: '40px', textAlign: 'center', color: COLORS.textLight }}>
+                      Loading education levels...
                     </td>
-                    <td style={{ padding: '16px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: TYPOGRAPHY.textImportant.fontSize, color: COLORS.text }}>
-                      {edu.level}
+                  </tr>
+                ) : educationLevels.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} style={{ padding: '40px', textAlign: 'center', color: COLORS.textLight }}>
+                      No education levels found. Click "Add" to create a new education level.
                     </td>
+                  </tr>
+                ) : (
+                  educationLevels.map(edu => (
+                    <tr key={edu.id} style={{ borderBottom: `1px solid ${COLORS.border}`, backgroundColor: COLORS.white }}>
+                      <td style={{ padding: '16px' }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedItems.includes(edu.id)}
+                          onChange={() => handleSelectItem(edu.id)}
+                        />
+                      </td>
+                      <td style={{ padding: '16px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: TYPOGRAPHY.textImportant.fontSize, color: COLORS.text }}>
+                        {edu.name}
+                      </td>
                     <td style={{ padding: '16px', textAlign: 'center' }}>
                       <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
                         <button
@@ -219,7 +264,8 @@ const Education: React.FC = () => {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  ))
+                )}
               </tbody>
             </table>
           </div>

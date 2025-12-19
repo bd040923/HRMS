@@ -387,6 +387,569 @@ app.delete('/api/job-titles/:id', async (req, res) => {
   }
 });
 
+// ==================== ORGANIZATION GENERAL INFORMATION API ====================
+
+// Diagnostic endpoint to test organization table
+app.get('/api/organization/test', async (req, res) => {
+  try {
+    // Check if table exists
+    const tableCheck = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'hrms_data' 
+        AND table_name = 'organization_gen_info'
+      )
+    `);
+    
+    const tableExists = tableCheck.rows[0].exists;
+    
+    if (!tableExists) {
+      return res.json({
+        success: false,
+        tableExists: false,
+        message: 'Table hrms_data.organization_gen_info does not exist',
+        hint: 'Run: orangehrm/database/create-organization-gen-info-table.sql'
+      });
+    }
+    
+    // Try to query the table
+    const result = await pool.query('SELECT COUNT(*) as count FROM hrms_data.organization_gen_info');
+    const count = result.rows[0].count;
+    
+    res.json({
+      success: true,
+      tableExists: true,
+      recordCount: parseInt(count),
+      message: 'Table exists and is accessible'
+    });
+  } catch (error) {
+    console.error('Error in organization test endpoint:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      code: error.code,
+      detail: error.detail
+    });
+  }
+});
+
+// Get organization general information
+app.get('/api/organization/general-information', async (req, res) => {
+  try {
+    // First check if table exists
+    const tableCheck = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'hrms_data' 
+        AND table_name = 'organization_gen_info'
+      )
+    `);
+    
+    if (!tableCheck.rows[0].exists) {
+      console.error('❌ Table hrms_data.organization_gen_info does not exist!');
+      return res.status(500).json({ 
+        error: 'Table does not exist',
+        message: 'Please run the SQL script to create the organization_gen_info table',
+        hint: 'Run: orangehrm/database/create-organization-gen-info-table.sql'
+      });
+    }
+
+    const result = await pool.query(
+      'SELECT * FROM hrms_data.organization_gen_info WHERE id = 1 LIMIT 1'
+    );
+    if (result.rows.length === 0) {
+      // Return default empty structure
+      return res.json({
+        id: null,
+        name: '',
+        registration_number: '',
+        tax_id: '',
+        phone: '',
+        fax: '',
+        email: '',
+        street1: '',
+        street2: '',
+        city: '',
+        province: '',
+        zip_code: '',
+        country: '',
+        note: '',
+        number_of_employees: null
+      });
+    }
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('❌ Error fetching organization general information:', error);
+    console.error('   Error details:', {
+      message: error.message,
+      code: error.code,
+      detail: error.detail
+    });
+    res.status(500).json({ 
+      error: error.message,
+      hint: 'Check if table hrms_data.organization_gen_info exists and has correct permissions'
+    });
+  }
+});
+
+// Update organization general information
+app.put('/api/organization/general-information', async (req, res) => {
+  console.log('📥 PUT /api/organization/general-information received:', req.body);
+  try {
+    // First check if table exists
+    const tableCheck = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'hrms_data' 
+        AND table_name = 'organization_gen_info'
+      )
+    `);
+    
+    if (!tableCheck.rows[0].exists) {
+      console.error('❌ Table hrms_data.organization_gen_info does not exist!');
+      return res.status(500).json({ 
+        error: 'Table does not exist',
+        message: 'Please run the SQL script to create the organization_gen_info table',
+        hint: 'Run: orangehrm/database/create-organization-gen-info-table.sql'
+      });
+    }
+
+    const {
+      name,
+      registration_number,
+      tax_id,
+      phone,
+      fax,
+      email,
+      street1,
+      street2,
+      city,
+      province,
+      zip_code,
+      country,
+      note,
+      number_of_employees
+    } = req.body;
+
+    if (!name) {
+      return res.status(400).json({ error: 'Organization name is required' });
+    }
+
+    // Check if record exists
+    const checkResult = await pool.query('SELECT id FROM hrms_data.organization_gen_info WHERE id = 1');
+    
+    if (checkResult.rows.length === 0) {
+      // Insert new record
+      const result = await pool.query(
+        `INSERT INTO hrms_data.organization_gen_info (
+          id, name, registration_number, tax_id, phone, fax, email,
+          street1, street2, city, province, zip_code, country, note, number_of_employees
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+        RETURNING *`,
+        [1, name, registration_number || null, tax_id || null, phone || null, fax || null,
+         email || null, street1 || null, street2 || null, city || null, province || null,
+         zip_code || null, country || null, note || null, number_of_employees || null]
+      );
+      res.json(result.rows[0]);
+    } else {
+      // Update existing record
+      const result = await pool.query(
+        `UPDATE hrms_data.organization_gen_info SET
+          name = $1,
+          registration_number = $2,
+          tax_id = $3,
+          phone = $4,
+          fax = $5,
+          email = $6,
+          street1 = $7,
+          street2 = $8,
+          city = $9,
+          province = $10,
+          zip_code = $11,
+          country = $12,
+          note = $13,
+          number_of_employees = $14,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = 1
+        RETURNING *`,
+        [name, registration_number || null, tax_id || null, phone || null, fax || null,
+         email || null, street1 || null, street2 || null, city || null, province || null,
+         zip_code || null, country || null, note || null, number_of_employees || null]
+      );
+      console.log('✅ Organization info updated:', result.rows[0]);
+      res.json(result.rows[0]);
+    }
+  } catch (error) {
+    console.error('❌ Error updating organization general information:', error);
+    console.error('   Error details:', {
+      message: error.message,
+      code: error.code,
+      detail: error.detail,
+      hint: error.hint
+    });
+    res.status(500).json({ 
+      error: error.message,
+      code: error.code,
+      detail: error.detail,
+      hint: 'Check server console for detailed error information'
+    });
+  }
+});
+
+// ==================== LOCATIONS API ====================
+
+// Get all locations
+app.get('/api/locations', async (req, res) => {
+  try {
+    const { name, city, country } = req.query;
+    
+    let query = 'SELECT id, name, city, country, phone, number_of_employees, status, created_at, updated_at FROM hrms_data.locations WHERE 1=1';
+    const params = [];
+    let paramCount = 1;
+    
+    if (name) {
+      query += ` AND name ILIKE $${paramCount}`;
+      params.push(`%${name}%`);
+      paramCount++;
+    }
+    if (city) {
+      query += ` AND city ILIKE $${paramCount}`;
+      params.push(`%${city}%`);
+      paramCount++;
+    }
+    if (country) {
+      query += ` AND country ILIKE $${paramCount}`;
+      params.push(`%${country}%`);
+      paramCount++;
+    }
+    
+    query += ' ORDER BY name';
+    
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching locations:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get single location
+app.get('/api/locations/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(
+      'SELECT * FROM hrms_data.locations WHERE id = $1',
+      [id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Location not found' });
+    }
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error fetching location:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Create location
+app.post('/api/locations', async (req, res) => {
+  console.log('📥 POST /api/locations received:', req.body);
+  try {
+    const { name, city, country, phone, fax, address, zip_code, province, number_of_employees } = req.body;
+    
+    if (!name) {
+      return res.status(400).json({ error: 'Location name is required' });
+    }
+    
+    const result = await pool.query(
+      `INSERT INTO hrms_data.locations (
+        name, city, country, phone, fax, address, zip_code, province, number_of_employees, status
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      RETURNING id, name, city, country, phone, number_of_employees, status, created_at, updated_at`,
+      [
+        name,
+        city || null,
+        country || null,
+        phone || null,
+        fax || null,
+        address || null,
+        zip_code || null,
+        province || null,
+        number_of_employees || 0,
+        'active'
+      ]
+    );
+    console.log('✅ Location created:', result.rows[0]);
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('❌ Error creating location:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update location
+app.put('/api/locations/:id', async (req, res) => {
+  console.log(`📥 PUT /api/locations/${req.params.id} received:`, req.body);
+  try {
+    const { id } = req.params;
+    const { name, city, country, phone, fax, address, zip_code, province, number_of_employees, status } = req.body;
+    
+    if (!name) {
+      return res.status(400).json({ error: 'Location name is required' });
+    }
+    
+    const result = await pool.query(
+      `UPDATE hrms_data.locations SET
+        name = $1,
+        city = $2,
+        country = $3,
+        phone = $4,
+        fax = $5,
+        address = $6,
+        zip_code = $7,
+        province = $8,
+        number_of_employees = $9,
+        status = COALESCE($10, status),
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $11
+      RETURNING id, name, city, country, phone, number_of_employees, status, created_at, updated_at`,
+      [name, city || null, country || null, phone || null, fax || null, address || null, zip_code || null, province || null, number_of_employees || 0, status, id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Location not found' });
+    }
+    console.log('✅ Location updated:', result.rows[0]);
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('❌ Error updating location:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Delete location
+app.delete('/api/locations/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query('DELETE FROM hrms_data.locations WHERE id = $1 RETURNING id', [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Location not found' });
+    }
+    res.json({ message: 'Location deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting location:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ==================== ORGANIZATION STRUCTURE API ====================
+
+// Get organization structure (hierarchical tree)
+app.get('/api/organization/structure', async (req, res) => {
+  try {
+    // First check if table exists
+    const tableCheck = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'hrms_data' 
+        AND table_name = 'organization_structure'
+      )
+    `);
+    
+    if (!tableCheck.rows[0].exists) {
+      // Return default structure
+      return res.json({
+        id: 1,
+        name: 'arithwise_hrms',
+        unit_id: 'company',
+        level: 0,
+        children: []
+      });
+    }
+
+    // Get all units
+    const allUnits = await pool.query(
+      'SELECT id, name, unit_id, description, parent_id, level FROM hrms_data.organization_structure WHERE status = $1 ORDER BY level, name',
+      ['active']
+    );
+
+    if (allUnits.rows.length === 0) {
+      // Return default structure
+      return res.json({
+        id: 1,
+        name: 'arithwise_hrms',
+        unit_id: 'company',
+        level: 0,
+        children: []
+      });
+    }
+
+    // Build hierarchical structure
+    const unitsMap = new Map();
+    const rootUnits = [];
+
+    // First pass: create map of all units
+    allUnits.rows.forEach((unit) => {
+      unitsMap.set(unit.id, {
+        id: unit.id,
+        name: unit.name,
+        unit_id: unit.unit_id,
+        description: unit.description,
+        level: unit.level,
+        parent_id: unit.parent_id,
+        children: []
+      });
+    });
+
+    // Second pass: build tree
+    allUnits.rows.forEach((unit) => {
+      const unitNode = unitsMap.get(unit.id);
+      if (unit.parent_id === null || unit.parent_id === undefined) {
+        rootUnits.push(unitNode);
+      } else {
+        const parent = unitsMap.get(unit.parent_id);
+        if (parent) {
+          parent.children.push(unitNode);
+        } else {
+          // Orphan node, add to root
+          rootUnits.push(unitNode);
+        }
+      }
+    });
+
+    // Return the first root unit (or create default)
+    if (rootUnits.length > 0) {
+      res.json(rootUnits[0]);
+    } else {
+      res.json({
+        id: 1,
+        name: 'arithwise_hrms',
+        unit_id: 'company',
+        level: 0,
+        children: []
+      });
+    }
+  } catch (error) {
+    console.error('Error fetching organization structure:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Create organization unit
+app.post('/api/organization/structure', async (req, res) => {
+  console.log('📥 POST /api/organization/structure received:', req.body);
+  try {
+    // First check if table exists
+    const tableCheck = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'hrms_data' 
+        AND table_name = 'organization_structure'
+      )
+    `);
+    
+    if (!tableCheck.rows[0].exists) {
+      console.error('❌ Table hrms_data.organization_structure does not exist!');
+      return res.status(500).json({ 
+        error: 'Table does not exist',
+        message: 'Please run the SQL script to create the organization_structure table',
+        hint: 'Run: orangehrm/database/QUICK_CREATE_STRUCTURE_TABLE.sql'
+      });
+    }
+
+    const { name, unit_id, description, parent_id, level } = req.body;
+    
+    if (!name) {
+      return res.status(400).json({ error: 'Unit name is required' });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO hrms_data.organization_structure (name, unit_id, description, parent_id, level, status)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING id, name, unit_id, description, parent_id, level, status`,
+      [name, unit_id || null, description || null, parent_id || null, level || 0, 'active']
+    );
+    
+    console.log('✅ Organization unit created:', result.rows[0]);
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('❌ Error creating organization unit:', error);
+    console.error('   Error details:', {
+      message: error.message,
+      code: error.code,
+      detail: error.detail
+    });
+    res.status(500).json({ 
+      error: error.message,
+      code: error.code,
+      detail: error.detail
+    });
+  }
+});
+
+// Update organization unit
+app.put('/api/organization/structure/:id', async (req, res) => {
+  console.log(`📥 PUT /api/organization/structure/${req.params.id} received:`, req.body);
+  try {
+    // First check if table exists
+    const tableCheck = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'hrms_data' 
+        AND table_name = 'organization_structure'
+      )
+    `);
+    
+    if (!tableCheck.rows[0].exists) {
+      console.error('❌ Table hrms_data.organization_structure does not exist!');
+      return res.status(500).json({ 
+        error: 'Table does not exist',
+        message: 'Please run the SQL script to create the organization_structure table',
+        hint: 'Run: orangehrm/database/VERIFY_AND_CREATE_STRUCTURE_TABLE.sql'
+      });
+    }
+
+    const { id } = req.params;
+    const { name, unit_id, description, parent_id, level } = req.body;
+    
+    if (!name) {
+      return res.status(400).json({ error: 'Unit name is required' });
+    }
+
+    const result = await pool.query(
+      `UPDATE hrms_data.organization_structure 
+      SET name = $1, unit_id = $2, description = $3, parent_id = $4, level = $5, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $6
+      RETURNING id, name, unit_id, description, parent_id, level, status`,
+      [name, unit_id || null, description || null, parent_id || null, level || 0, id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Organization unit not found' });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating organization unit:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Delete organization unit
+app.delete('/api/organization/structure/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query('DELETE FROM hrms_data.organization_structure WHERE id = $1 RETURNING id', [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Organization unit not found' });
+    }
+    res.json({ message: 'Organization unit deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting organization unit:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ==================== VACANCIES API ====================
 
 // Get all vacancies with filters
@@ -2194,12 +2757,14 @@ app.get('/api/locations', async (req, res) => {
   }
 });
 
+// Duplicate endpoint - using the one above at line 655 instead
+// This endpoint is kept for backward compatibility but uses the correct schema
 app.post('/api/locations', async (req, res) => {
   try {
-    const { name, country, province, city, address, zip_code, phone, fax, notes } = req.body;
+    const { name, country, province, city, address, zip_code, phone, fax, notes, number_of_employees } = req.body;
     const result = await pool.query(
-      'INSERT INTO locations (name, country, province, city, address, zip_code, phone, fax, notes) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
-      [name, country, province, city, address, zip_code, phone, fax, notes]
+      'INSERT INTO hrms_data.locations (name, country, province, city, address, zip_code, phone, fax, notes, number_of_employees, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *',
+      [name, country, province, city, address, zip_code, phone, fax, notes || null, number_of_employees || 0, 'active']
     );
     res.status(201).json(result.rows[0]);
   } catch (error) {
@@ -2208,13 +2773,18 @@ app.post('/api/locations', async (req, res) => {
   }
 });
 
+// Duplicate endpoint - using the one above at line 686 instead
+// This endpoint is kept for backward compatibility but uses the correct schema
 app.put('/api/locations/:id', async (req, res) => {
   try {
-    const { name, country, province, city, address, zip_code, phone, fax, notes } = req.body;
+    const { name, country, province, city, address, zip_code, phone, fax, notes, number_of_employees } = req.body;
     const result = await pool.query(
-      'UPDATE locations SET name = $1, country = $2, province = $3, city = $4, address = $5, zip_code = $6, phone = $7, fax = $8, notes = $9, updated_at = CURRENT_TIMESTAMP WHERE id = $10 RETURNING *',
-      [name, country, province, city, address, zip_code, phone, fax, notes, req.params.id]
+      'UPDATE hrms_data.locations SET name = $1, country = $2, province = $3, city = $4, address = $5, zip_code = $6, phone = $7, fax = $8, notes = $9, number_of_employees = COALESCE($10, number_of_employees), updated_at = CURRENT_TIMESTAMP WHERE id = $11 RETURNING *',
+      [name, country, province, city, address, zip_code, phone, fax, notes || null, number_of_employees, req.params.id]
     );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Location not found' });
+    }
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Error updating location:', error);
@@ -2235,7 +2805,7 @@ app.delete('/api/locations/:id', async (req, res) => {
 // Pay Grades
 app.get('/api/pay-grades', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM pay_grades ORDER BY name');
+    const result = await pool.query('SELECT * FROM hrms_data.pay_grades ORDER BY name');
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching pay grades:', error);
@@ -2247,7 +2817,7 @@ app.post('/api/pay-grades', async (req, res) => {
   try {
     const { name, currency, min_salary, max_salary } = req.body;
     const result = await pool.query(
-      'INSERT INTO pay_grades (name, currency, min_salary, max_salary) VALUES ($1, $2, $3, $4) RETURNING *',
+      'INSERT INTO hrms_data.pay_grades (name, currency, min_salary, max_salary) VALUES ($1, $2, $3, $4) RETURNING *',
       [name, currency, min_salary, max_salary]
     );
     res.status(201).json(result.rows[0]);
@@ -2261,7 +2831,7 @@ app.put('/api/pay-grades/:id', async (req, res) => {
   try {
     const { name, currency, min_salary, max_salary } = req.body;
     const result = await pool.query(
-      'UPDATE pay_grades SET name = $1, currency = $2, min_salary = $3, max_salary = $4, updated_at = CURRENT_TIMESTAMP WHERE id = $5 RETURNING *',
+      'UPDATE hrms_data.pay_grades SET name = $1, currency = $2, min_salary = $3, max_salary = $4, updated_at = CURRENT_TIMESTAMP WHERE id = $5 RETURNING *',
       [name, currency, min_salary, max_salary, req.params.id]
     );
     res.json(result.rows[0]);
@@ -2273,7 +2843,7 @@ app.put('/api/pay-grades/:id', async (req, res) => {
 
 app.delete('/api/pay-grades/:id', async (req, res) => {
   try {
-    await pool.query('DELETE FROM pay_grades WHERE id = $1', [req.params.id]);
+    await pool.query('DELETE FROM hrms_data.pay_grades WHERE id = $1', [req.params.id]);
     res.json({ success: true });
   } catch (error) {
     console.error('Error deleting pay grade:', error);
@@ -2284,7 +2854,7 @@ app.delete('/api/pay-grades/:id', async (req, res) => {
 // Employment Status
 app.get('/api/employment-status', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM employment_status ORDER BY name');
+    const result = await pool.query('SELECT * FROM hrms_data.employment_status ORDER BY name');
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching employment status:', error);
@@ -2295,7 +2865,7 @@ app.get('/api/employment-status', async (req, res) => {
 app.post('/api/employment-status', async (req, res) => {
   try {
     const { name } = req.body;
-    const result = await pool.query('INSERT INTO employment_status (name) VALUES ($1) RETURNING *', [name]);
+    const result = await pool.query('INSERT INTO hrms_data.employment_status (name) VALUES ($1) RETURNING *', [name]);
     res.status(201).json(result.rows[0]);
   } catch (error) {
     console.error('Error creating employment status:', error);
@@ -2303,10 +2873,39 @@ app.post('/api/employment-status', async (req, res) => {
   }
 });
 
+app.put('/api/employment-status/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name } = req.body;
+    const result = await pool.query('UPDATE hrms_data.employment_status SET name = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *', [name, id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Employment status not found' });
+    }
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating employment status:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/employment-status/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query('DELETE FROM hrms_data.employment_status WHERE id = $1 RETURNING id', [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Employment status not found' });
+    }
+    res.json({ message: 'Employment status deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting employment status:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Job Categories
 app.get('/api/job-categories', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM job_categories ORDER BY name');
+    const result = await pool.query('SELECT * FROM hrms_data.job_categories ORDER BY name');
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching job categories:', error);
@@ -2317,7 +2916,7 @@ app.get('/api/job-categories', async (req, res) => {
 app.post('/api/job-categories', async (req, res) => {
   try {
     const { name } = req.body;
-    const result = await pool.query('INSERT INTO job_categories (name) VALUES ($1) RETURNING *', [name]);
+    const result = await pool.query('INSERT INTO hrms_data.job_categories (name) VALUES ($1) RETURNING *', [name]);
     res.status(201).json(result.rows[0]);
   } catch (error) {
     console.error('Error creating job category:', error);
@@ -2325,10 +2924,39 @@ app.post('/api/job-categories', async (req, res) => {
   }
 });
 
+app.put('/api/job-categories/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name } = req.body;
+    const result = await pool.query('UPDATE hrms_data.job_categories SET name = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *', [name, id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Job category not found' });
+    }
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating job category:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/job-categories/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query('DELETE FROM hrms_data.job_categories WHERE id = $1 RETURNING id', [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Job category not found' });
+    }
+    res.json({ message: 'Job category deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting job category:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Work Shifts
 app.get('/api/work-shifts', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM work_shifts ORDER BY name');
+    const result = await pool.query('SELECT * FROM hrms_data.work_shifts ORDER BY name');
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching work shifts:', error);
@@ -2340,7 +2968,7 @@ app.post('/api/work-shifts', async (req, res) => {
   try {
     const { name, hours_per_day, start_time, end_time } = req.body;
     const result = await pool.query(
-      'INSERT INTO work_shifts (name, hours_per_day, start_time, end_time) VALUES ($1, $2, $3, $4) RETURNING *',
+      'INSERT INTO hrms_data.work_shifts (name, hours_per_day, start_time, end_time) VALUES ($1, $2, $3, $4) RETURNING *',
       [name, hours_per_day, start_time, end_time]
     );
     res.status(201).json(result.rows[0]);
@@ -2350,10 +2978,42 @@ app.post('/api/work-shifts', async (req, res) => {
   }
 });
 
+app.put('/api/work-shifts/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, hours_per_day, start_time, end_time } = req.body;
+    const result = await pool.query(
+      'UPDATE hrms_data.work_shifts SET name = $1, hours_per_day = $2, start_time = $3, end_time = $4, updated_at = CURRENT_TIMESTAMP WHERE id = $5 RETURNING *',
+      [name, hours_per_day, start_time, end_time, id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Work shift not found' });
+    }
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating work shift:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/work-shifts/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query('DELETE FROM hrms_data.work_shifts WHERE id = $1 RETURNING id', [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Work shift not found' });
+    }
+    res.json({ message: 'Work shift deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting work shift:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Nationalities
 app.get('/api/nationalities', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM nationalities ORDER BY name');
+    const result = await pool.query('SELECT * FROM hrms_data.nationalities ORDER BY name');
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching nationalities:', error);
@@ -2364,7 +3024,7 @@ app.get('/api/nationalities', async (req, res) => {
 app.post('/api/nationalities', async (req, res) => {
   try {
     const { name } = req.body;
-    const result = await pool.query('INSERT INTO nationalities (name) VALUES ($1) RETURNING *', [name]);
+    const result = await pool.query('INSERT INTO hrms_data.nationalities (name) VALUES ($1) RETURNING *', [name]);
     res.status(201).json(result.rows[0]);
   } catch (error) {
     console.error('Error creating nationality:', error);
@@ -2375,7 +3035,10 @@ app.post('/api/nationalities', async (req, res) => {
 app.put('/api/nationalities/:id', async (req, res) => {
   try {
     const { name } = req.body;
-    const result = await pool.query('UPDATE nationalities SET name = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *', [name, req.params.id]);
+    const result = await pool.query('UPDATE hrms_data.nationalities SET name = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *', [name, req.params.id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Nationality not found' });
+    }
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Error updating nationality:', error);
@@ -2385,10 +3048,326 @@ app.put('/api/nationalities/:id', async (req, res) => {
 
 app.delete('/api/nationalities/:id', async (req, res) => {
   try {
-    await pool.query('DELETE FROM nationalities WHERE id = $1', [req.params.id]);
-    res.json({ success: true });
+    const result = await pool.query('DELETE FROM hrms_data.nationalities WHERE id = $1 RETURNING id', [req.params.id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Nationality not found' });
+    }
+    res.json({ message: 'Nationality deleted successfully' });
   } catch (error) {
     console.error('Error deleting nationality:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================================================
+// SKILLS API
+// ============================================================================
+app.get('/api/skills', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM hrms_data.skills ORDER BY name');
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching skills:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/skills', async (req, res) => {
+  try {
+    const { name, description } = req.body;
+    if (!name) {
+      return res.status(400).json({ error: 'Skill name is required' });
+    }
+    const result = await pool.query(
+      'INSERT INTO hrms_data.skills (name, description) VALUES ($1, $2) RETURNING *',
+      [name, description || null]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating skill:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/skills/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, description } = req.body;
+    if (!name) {
+      return res.status(400).json({ error: 'Skill name is required' });
+    }
+    const result = await pool.query(
+      'UPDATE hrms_data.skills SET name = $1, description = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3 RETURNING *',
+      [name, description || null, id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Skill not found' });
+    }
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating skill:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/skills/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query('DELETE FROM hrms_data.skills WHERE id = $1 RETURNING id', [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Skill not found' });
+    }
+    res.json({ message: 'Skill deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting skill:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================================================
+// EDUCATION LEVELS API
+// ============================================================================
+app.get('/api/education-levels', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM hrms_data.education_levels ORDER BY name');
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching education levels:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/education-levels', async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name) {
+      return res.status(400).json({ error: 'Education level name is required' });
+    }
+    const result = await pool.query('INSERT INTO hrms_data.education_levels (name) VALUES ($1) RETURNING *', [name]);
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating education level:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/education-levels/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name } = req.body;
+    if (!name) {
+      return res.status(400).json({ error: 'Education level name is required' });
+    }
+    const result = await pool.query(
+      'UPDATE hrms_data.education_levels SET name = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
+      [name, id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Education level not found' });
+    }
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating education level:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/education-levels/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query('DELETE FROM hrms_data.education_levels WHERE id = $1 RETURNING id', [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Education level not found' });
+    }
+    res.json({ message: 'Education level deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting education level:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================================================
+// LICENSES API
+// ============================================================================
+app.get('/api/licenses', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM hrms_data.licenses ORDER BY name');
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching licenses:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/licenses', async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name) {
+      return res.status(400).json({ error: 'License name is required' });
+    }
+    const result = await pool.query('INSERT INTO hrms_data.licenses (name) VALUES ($1) RETURNING *', [name]);
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating license:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/licenses/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name } = req.body;
+    if (!name) {
+      return res.status(400).json({ error: 'License name is required' });
+    }
+    const result = await pool.query(
+      'UPDATE hrms_data.licenses SET name = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
+      [name, id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'License not found' });
+    }
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating license:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/licenses/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query('DELETE FROM hrms_data.licenses WHERE id = $1 RETURNING id', [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'License not found' });
+    }
+    res.json({ message: 'License deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting license:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================================================
+// LANGUAGES API
+// ============================================================================
+app.get('/api/languages', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM hrms_data.languages ORDER BY name');
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching languages:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/languages', async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name) {
+      return res.status(400).json({ error: 'Language name is required' });
+    }
+    const result = await pool.query('INSERT INTO hrms_data.languages (name) VALUES ($1) RETURNING *', [name]);
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating language:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/languages/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name } = req.body;
+    if (!name) {
+      return res.status(400).json({ error: 'Language name is required' });
+    }
+    const result = await pool.query(
+      'UPDATE hrms_data.languages SET name = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
+      [name, id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Language not found' });
+    }
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating language:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/languages/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query('DELETE FROM hrms_data.languages WHERE id = $1 RETURNING id', [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Language not found' });
+    }
+    res.json({ message: 'Language deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting language:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================================================
+// MEMBERSHIPS API
+// ============================================================================
+app.get('/api/memberships', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM hrms_data.memberships ORDER BY name');
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching memberships:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/memberships', async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name) {
+      return res.status(400).json({ error: 'Membership name is required' });
+    }
+    const result = await pool.query('INSERT INTO hrms_data.memberships (name) VALUES ($1) RETURNING *', [name]);
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating membership:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/memberships/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name } = req.body;
+    if (!name) {
+      return res.status(400).json({ error: 'Membership name is required' });
+    }
+    const result = await pool.query(
+      'UPDATE hrms_data.memberships SET name = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
+      [name, id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Membership not found' });
+    }
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating membership:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/memberships/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query('DELETE FROM hrms_data.memberships WHERE id = $1 RETURNING id', [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Membership not found' });
+    }
+    res.json({ message: 'Membership deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting membership:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -2502,6 +3481,10 @@ app.use((req, res) => {
         'POST /api/job-titles',
         'PUT /api/job-titles/:id',
         'DELETE /api/job-titles/:id',
+        'GET /api/organization/structure',
+        'POST /api/organization/structure',
+        'PUT /api/organization/structure/:id',
+        'DELETE /api/organization/structure/:id',
         'GET /api/vacancies',
         'GET /api/candidates',
         'GET /api/employees'

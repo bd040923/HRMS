@@ -3,9 +3,10 @@
  * Copyright (C) 2024 Arithwise Inc.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import AdminLayout from './AdminLayout';
 import ProtectedRoute from '../../components/ProtectedRoute';
+import { apiService } from '../../services/api';
 
 const COLORS = {
   primary: '#78176b',
@@ -32,16 +33,29 @@ interface Membership {
 }
 
 const Memberships: React.FC = () => {
-  const [memberships, setMemberships] = useState<Membership[]>([
-    { id: 1, name: 'ACCA' },
-    { id: 2, name: 'British Computer Society (BCS)' },
-    { id: 3, name: 'Chartered Institute of Marketing (CIM)' },
-    { id: 4, name: 'CIMA' },
-  ]);
+  const [memberships, setMemberships] = useState<Membership[]>([]);
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingItem, setEditingItem] = useState<Membership | null>(null);
   const [formData, setFormData] = useState({ name: '' });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchMemberships();
+  }, []);
+
+  const fetchMemberships = async () => {
+    setLoading(true);
+    try {
+      const data = await apiService.getMemberships();
+      setMemberships(data || []);
+    } catch (error) {
+      console.error('Error fetching memberships:', error);
+      alert('Failed to load memberships. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
@@ -57,10 +71,17 @@ const Memberships: React.FC = () => {
     );
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = async (id: number) => {
     if (window.confirm('Are you sure you want to delete this membership?')) {
-      setMemberships(memberships.filter(m => m.id !== id));
-      setSelectedItems(selectedItems.filter(i => i !== id));
+      try {
+        await apiService.deleteMembership(id);
+        setMemberships(memberships.filter(m => m.id !== id));
+        setSelectedItems(selectedItems.filter(i => i !== id));
+        alert('Membership deleted successfully!');
+      } catch (error: any) {
+        console.error('Error deleting membership:', error);
+        alert(`Failed to delete membership: ${error.message || 'Unknown error'}`);
+      }
     }
   };
 
@@ -76,21 +97,32 @@ const Memberships: React.FC = () => {
     setShowAddModal(true);
   };
 
-  const handleSave = () => {
-    if (!formData.name.trim()) return;
-    
-    if (editingItem) {
-      setMemberships(memberships.map(m => 
-        m.id === editingItem.id 
-          ? { ...m, name: formData.name }
-          : m
-      ));
-    } else {
-      const newId = Math.max(...memberships.map(m => m.id), 0) + 1;
-      setMemberships([...memberships, { id: newId, name: formData.name }]);
+  const handleSave = async () => {
+    if (!formData.name.trim()) {
+      alert('Membership name is required');
+      return;
     }
-    setShowAddModal(false);
-    setFormData({ name: '' });
+    
+    try {
+      if (editingItem) {
+        const updated = await apiService.updateMembership(editingItem.id, {
+          name: formData.name
+        });
+        setMemberships(memberships.map(m => m.id === editingItem.id ? updated : m));
+        alert('Membership updated successfully!');
+      } else {
+        const newMembership = await apiService.createMembership({
+          name: formData.name
+        });
+        setMemberships([...memberships, newMembership]);
+        alert('Membership created successfully!');
+      }
+      setShowAddModal(false);
+      setFormData({ name: '' });
+    } catch (error: any) {
+      console.error('Error saving membership:', error);
+      alert(`Failed to save membership: ${error.message || 'Unknown error'}`);
+    }
   };
 
   return (
@@ -174,52 +206,66 @@ const Memberships: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {memberships.map(membership => (
-                  <tr key={membership.id} style={{ borderBottom: `1px solid ${COLORS.border}`, backgroundColor: COLORS.white }}>
-                    <td style={{ padding: '16px' }}>
-                      <input
-                        type="checkbox"
-                        checked={selectedItems.includes(membership.id)}
-                        onChange={() => handleSelectItem(membership.id)}
-                      />
-                    </td>
-                    <td style={{ padding: '16px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: TYPOGRAPHY.textImportant.fontSize, color: COLORS.text }}>
-                      {membership.name}
-                    </td>
-                    <td style={{ padding: '16px', textAlign: 'center' }}>
-                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                        <button
-                          onClick={() => handleDelete(membership.id)}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            cursor: 'pointer',
-                            color: COLORS.textLight,
-                            fontSize: '18px',
-                            padding: '4px 8px',
-                          }}
-                          title="Delete"
-                        >
-                          🗑️
-                        </button>
-                        <button
-                          onClick={() => handleEdit(membership)}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            cursor: 'pointer',
-                            color: COLORS.textLight,
-                            fontSize: '18px',
-                            padding: '4px 8px',
-                          }}
-                          title="Edit"
-                        >
-                          ✏️
-                        </button>
-                      </div>
+                {loading ? (
+                  <tr>
+                    <td colSpan={3} style={{ padding: '40px', textAlign: 'center', color: COLORS.textLight }}>
+                      Loading memberships...
                     </td>
                   </tr>
-                ))}
+                ) : memberships.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} style={{ padding: '40px', textAlign: 'center', color: COLORS.textLight }}>
+                      No memberships found. Click "Add" to create a new membership.
+                    </td>
+                  </tr>
+                ) : (
+                  memberships.map(membership => (
+                    <tr key={membership.id} style={{ borderBottom: `1px solid ${COLORS.border}`, backgroundColor: COLORS.white }}>
+                      <td style={{ padding: '16px' }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedItems.includes(membership.id)}
+                          onChange={() => handleSelectItem(membership.id)}
+                        />
+                      </td>
+                      <td style={{ padding: '16px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: TYPOGRAPHY.textImportant.fontSize, color: COLORS.text }}>
+                        {membership.name}
+                      </td>
+                      <td style={{ padding: '16px', textAlign: 'center' }}>
+                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                          <button
+                            onClick={() => handleDelete(membership.id)}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              cursor: 'pointer',
+                              color: COLORS.textLight,
+                              fontSize: '18px',
+                              padding: '4px 8px',
+                            }}
+                            title="Delete"
+                          >
+                            🗑️
+                          </button>
+                          <button
+                            onClick={() => handleEdit(membership)}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              cursor: 'pointer',
+                              color: COLORS.textLight,
+                              fontSize: '18px',
+                              padding: '4px 8px',
+                            }}
+                            title="Edit"
+                          >
+                            ✏️
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

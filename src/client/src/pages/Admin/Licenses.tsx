@@ -3,9 +3,10 @@
  * Copyright (C) 2024 Arithwise Inc.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import AdminLayout from './AdminLayout';
 import ProtectedRoute from '../../components/ProtectedRoute';
+import { apiService } from '../../services/api';
 
 const COLORS = {
   primary: '#78176b',
@@ -32,18 +33,29 @@ interface License {
 }
 
 const Licenses: React.FC = () => {
-  const [licenses, setLicenses] = useState<License[]>([
-    { id: 1, name: 'Certified Digital Marketing Professional (CDMP)' },
-    { id: 2, name: 'Certified Information Security Manager (CISM)' },
-    { id: 3, name: 'Cisco Certified Network Associate (CCNA)' },
-    { id: 4, name: 'Cisco Certified Network Professional (CCNP)' },
-    { id: 5, name: 'Microsoft Certified Systems Engineer (MCSE)' },
-    { id: 6, name: 'PMI Agile Certified Practitioner (PMI-ACP)' },
-  ]);
+  const [licenses, setLicenses] = useState<License[]>([]);
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingItem, setEditingItem] = useState<License | null>(null);
   const [formData, setFormData] = useState({ name: '' });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchLicenses();
+  }, []);
+
+  const fetchLicenses = async () => {
+    setLoading(true);
+    try {
+      const data = await apiService.getLicenses();
+      setLicenses(data || []);
+    } catch (error) {
+      console.error('Error fetching licenses:', error);
+      alert('Failed to load licenses. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
@@ -59,10 +71,17 @@ const Licenses: React.FC = () => {
     );
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = async (id: number) => {
     if (window.confirm('Are you sure you want to delete this license?')) {
-      setLicenses(licenses.filter(l => l.id !== id));
-      setSelectedItems(selectedItems.filter(i => i !== id));
+      try {
+        await apiService.deleteLicense(id);
+        setLicenses(licenses.filter(l => l.id !== id));
+        setSelectedItems(selectedItems.filter(i => i !== id));
+        alert('License deleted successfully!');
+      } catch (error: any) {
+        console.error('Error deleting license:', error);
+        alert(`Failed to delete license: ${error.message || 'Unknown error'}`);
+      }
     }
   };
 
@@ -78,21 +97,32 @@ const Licenses: React.FC = () => {
     setShowAddModal(true);
   };
 
-  const handleSave = () => {
-    if (!formData.name.trim()) return;
-    
-    if (editingItem) {
-      setLicenses(licenses.map(l => 
-        l.id === editingItem.id 
-          ? { ...l, name: formData.name }
-          : l
-      ));
-    } else {
-      const newId = Math.max(...licenses.map(l => l.id), 0) + 1;
-      setLicenses([...licenses, { id: newId, name: formData.name }]);
+  const handleSave = async () => {
+    if (!formData.name.trim()) {
+      alert('License name is required');
+      return;
     }
-    setShowAddModal(false);
-    setFormData({ name: '' });
+    
+    try {
+      if (editingItem) {
+        const updated = await apiService.updateLicense(editingItem.id, {
+          name: formData.name
+        });
+        setLicenses(licenses.map(l => l.id === editingItem.id ? updated : l));
+        alert('License updated successfully!');
+      } else {
+        const newLicense = await apiService.createLicense({
+          name: formData.name
+        });
+        setLicenses([...licenses, newLicense]);
+        alert('License created successfully!');
+      }
+      setShowAddModal(false);
+      setFormData({ name: '' });
+    } catch (error: any) {
+      console.error('Error saving license:', error);
+      alert(`Failed to save license: ${error.message || 'Unknown error'}`);
+    }
   };
 
   return (
@@ -176,52 +206,66 @@ const Licenses: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {licenses.map(license => (
-                  <tr key={license.id} style={{ borderBottom: `1px solid ${COLORS.border}`, backgroundColor: COLORS.white }}>
-                    <td style={{ padding: '16px' }}>
-                      <input
-                        type="checkbox"
-                        checked={selectedItems.includes(license.id)}
-                        onChange={() => handleSelectItem(license.id)}
-                      />
-                    </td>
-                    <td style={{ padding: '16px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: TYPOGRAPHY.textImportant.fontSize, color: COLORS.text }}>
-                      {license.name}
-                    </td>
-                    <td style={{ padding: '16px', textAlign: 'center' }}>
-                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                        <button
-                          onClick={() => handleDelete(license.id)}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            cursor: 'pointer',
-                            color: COLORS.textLight,
-                            fontSize: '18px',
-                            padding: '4px 8px',
-                          }}
-                          title="Delete"
-                        >
-                          🗑️
-                        </button>
-                        <button
-                          onClick={() => handleEdit(license)}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            cursor: 'pointer',
-                            color: COLORS.textLight,
-                            fontSize: '18px',
-                            padding: '4px 8px',
-                          }}
-                          title="Edit"
-                        >
-                          ✏️
-                        </button>
-                      </div>
+                {loading ? (
+                  <tr>
+                    <td colSpan={3} style={{ padding: '40px', textAlign: 'center', color: COLORS.textLight }}>
+                      Loading licenses...
                     </td>
                   </tr>
-                ))}
+                ) : licenses.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} style={{ padding: '40px', textAlign: 'center', color: COLORS.textLight }}>
+                      No licenses found. Click "Add" to create a new license.
+                    </td>
+                  </tr>
+                ) : (
+                  licenses.map(license => (
+                    <tr key={license.id} style={{ borderBottom: `1px solid ${COLORS.border}`, backgroundColor: COLORS.white }}>
+                      <td style={{ padding: '16px' }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedItems.includes(license.id)}
+                          onChange={() => handleSelectItem(license.id)}
+                        />
+                      </td>
+                      <td style={{ padding: '16px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: TYPOGRAPHY.textImportant.fontSize, color: COLORS.text }}>
+                        {license.name}
+                      </td>
+                      <td style={{ padding: '16px', textAlign: 'center' }}>
+                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                          <button
+                            onClick={() => handleDelete(license.id)}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              cursor: 'pointer',
+                              color: COLORS.textLight,
+                              fontSize: '18px',
+                              padding: '4px 8px',
+                            }}
+                            title="Delete"
+                          >
+                            🗑️
+                          </button>
+                          <button
+                            onClick={() => handleEdit(license)}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              cursor: 'pointer',
+                              color: COLORS.textLight,
+                              fontSize: '18px',
+                              padding: '4px 8px',
+                            }}
+                            title="Edit"
+                          >
+                            ✏️
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

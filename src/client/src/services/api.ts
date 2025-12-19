@@ -34,10 +34,20 @@ class ApiService {
           // If response is not JSON, use status text
           errorMessage = response.statusText || errorMessage;
         }
-        throw new Error(errorMessage);
+        const error = new Error(errorMessage);
+        (error as any).status = response.status;
+        throw error;
       }
 
-      return await response.json();
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        const data = await response.json();
+        return data;
+      } else {
+        // If response is not JSON, return as text
+        const text = await response.text();
+        return text as any;
+      }
     } catch (error) {
       console.error(`API request failed: ${endpoint}`, error);
       throw error;
@@ -59,6 +69,116 @@ class ApiService {
 
   async deleteJobTitle(id: number) {
     return this.request<any>(`/job-titles/${id}`, { method: 'DELETE' });
+  }
+
+  // Organization General Information
+  async getOrganizationGeneralInfo() {
+    return this.request<any>('/organization/general-information');
+  }
+
+  async updateOrganizationGeneralInfo(data: {
+    name: string;
+    registration_number?: string;
+    tax_id?: string;
+    phone?: string;
+    fax?: string;
+    email?: string;
+    street1?: string;
+    street2?: string;
+    city?: string;
+    province?: string;
+    zip_code?: string;
+    country?: string;
+    note?: string;
+    number_of_employees?: number;
+  }) {
+    return this.request<any>('/organization/general-information', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Locations
+  async getLocations(filters?: { name?: string; city?: string; country?: string }) {
+    const params = new URLSearchParams();
+    if (filters?.name) params.append('name', filters.name);
+    if (filters?.city) params.append('city', filters.city);
+    if (filters?.country) params.append('country', filters.country);
+    
+    const queryString = params.toString();
+    return this.request<any[]>(`/locations${queryString ? `?${queryString}` : ''}`);
+  }
+
+  async getLocation(id: number) {
+    return this.request<any>(`/locations/${id}`);
+  }
+
+  async createLocation(data: {
+    name: string;
+    city?: string;
+    country?: string;
+    phone?: string;
+    fax?: string;
+    address?: string;
+    zip_code?: string;
+    province?: string;
+    number_of_employees?: number;
+  }) {
+    return this.request<any>('/locations', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async updateLocation(id: number, data: {
+    name: string;
+    city?: string;
+    country?: string;
+    phone?: string;
+    fax?: string;
+    address?: string;
+    zip_code?: string;
+    province?: string;
+    number_of_employees?: number;
+    status?: string;
+  }) {
+    return this.request<any>(`/locations/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+
+  async deleteLocation(id: number) {
+    return this.request<any>(`/locations/${id}`, { method: 'DELETE' });
+  }
+
+  // Organization Structure
+  async getOrganizationStructure() {
+    return this.request<any>('/organization/structure');
+  }
+
+  async createOrganizationUnit(data: {
+    name: string;
+    unit_id?: string;
+    description?: string;
+    parent_id?: number;
+    level?: number;
+  }) {
+    return this.request<any>('/organization/structure', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateOrganizationUnit(id: number, data: {
+    name: string;
+    unit_id?: string;
+    description?: string;
+    parent_id?: number;
+    level?: number;
+  }) {
+    return this.request<any>(`/organization/structure/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteOrganizationUnit(id: number) {
+    return this.request<any>(`/organization/structure/${id}`, { method: 'DELETE' });
   }
 
   // Vacancies
@@ -570,6 +690,101 @@ class ApiService {
 
   async deleteUser(id: number) {
     return this.request<any>(`/users/${id}`, { method: 'DELETE' });
+  }
+
+  // ============================================================================
+  // SKILLS API
+  // ============================================================================
+  async getSkills() {
+    return this.request<any[]>('/skills');
+  }
+
+  async createSkill(data: { name: string; description?: string }) {
+    return this.request<any>('/skills', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async updateSkill(id: number, data: { name: string; description?: string }) {
+    return this.request<any>(`/skills/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+
+  async deleteSkill(id: number) {
+    return this.request<any>(`/skills/${id}`, { method: 'DELETE' });
+  }
+
+  // ============================================================================
+  // EDUCATION LEVELS API
+  // ============================================================================
+  async getEducationLevels() {
+    return this.request<any[]>('/education-levels');
+  }
+
+  async createEducationLevel(data: { name: string }) {
+    return this.request<any>('/education-levels', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async updateEducationLevel(id: number, data: { name: string }) {
+    return this.request<any>(`/education-levels/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+
+  async deleteEducationLevel(id: number) {
+    return this.request<any>(`/education-levels/${id}`, { method: 'DELETE' });
+  }
+
+  // ============================================================================
+  // LICENSES API
+  // ============================================================================
+  async getLicenses() {
+    return this.request<any[]>('/licenses');
+  }
+
+  async createLicense(data: { name: string }) {
+    return this.request<any>('/licenses', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async updateLicense(id: number, data: { name: string }) {
+    return this.request<any>(`/licenses/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+
+  async deleteLicense(id: number) {
+    return this.request<any>(`/licenses/${id}`, { method: 'DELETE' });
+  }
+
+  // ============================================================================
+  // LANGUAGES API
+  // ============================================================================
+  async getLanguages() {
+    return this.request<any[]>('/languages');
+  }
+
+  async createLanguage(data: { name: string }) {
+    return this.request<any>('/languages', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async updateLanguage(id: number, data: { name: string }) {
+    return this.request<any>(`/languages/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+
+  async deleteLanguage(id: number) {
+    return this.request<any>(`/languages/${id}`, { method: 'DELETE' });
+  }
+
+  // ============================================================================
+  // MEMBERSHIPS API
+  // ============================================================================
+  async getMemberships() {
+    return this.request<any[]>('/memberships');
+  }
+
+  async createMembership(data: { name: string }) {
+    return this.request<any>('/memberships', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async updateMembership(id: number, data: { name: string }) {
+    return this.request<any>(`/memberships/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+
+  async deleteMembership(id: number) {
+    return this.request<any>(`/memberships/${id}`, { method: 'DELETE' });
   }
 }
 

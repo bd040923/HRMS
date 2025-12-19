@@ -3,9 +3,10 @@
  * Copyright (C) 2024 Arithwise Inc.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import AdminLayout from './AdminLayout';
 import ProtectedRoute from '../../components/ProtectedRoute';
+import { apiService } from '../../services/api';
 
 const COLORS = {
   primary: '#78176b',
@@ -33,33 +34,29 @@ interface Skill {
 }
 
 const Skills: React.FC = () => {
-  const [skills, setSkills] = useState<Skill[]>([
-    { id: 1, name: 'Content Creation', description: 'Marketing Skill' },
-    { id: 2, name: 'Copywriting', description: 'Marketing Skill' },
-    { id: 3, name: 'G Suite', description: 'Productivity Tools' },
-    { id: 4, name: 'Google Analytics', description: 'Marketing Skill' },
-    { id: 5, name: 'Java', description: 'Programming Language' },
-    { id: 6, name: 'JavaScript', description: 'Programming Language' },
-    { id: 7, name: 'JIRA', description: 'Project Management Tools' },
-    { id: 8, name: 'Office Suite', description: 'Productivity Tools' },
-    { id: 9, name: 'Perl', description: 'Programming Language' },
-    { id: 10, name: 'Photoshop', description: 'Graphic Design' },
-    { id: 11, name: 'PHP', description: 'Programming Language' },
-    { id: 12, name: 'Python', description: 'Programming Language' },
-    { id: 13, name: 'React Native', description: 'Programming Language' },
-    { id: 14, name: 'Ruby', description: 'Programming Language' },
-    { id: 15, name: 'Search Engine Optimization (SEO)', description: 'Marketing Skill' },
-    { id: 16, name: 'Selenium/webdriver', description: '' },
-    { id: 17, name: 'SQL', description: 'Programming Language' },
-    { id: 18, name: 'Swift', description: 'Programming Language' },
-    { id: 19, name: 'Trello', description: 'Project Management Tools' },
-    { id: 20, name: 'UI/UX Design', description: 'Graphic Design' },
-    { id: 21, name: 'Wireframing', description: 'Graphic Design' },
-  ]);
+  const [skills, setSkills] = useState<Skill[]>([]);
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingItem, setEditingItem] = useState<Skill | null>(null);
   const [formData, setFormData] = useState({ name: '', description: '' });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchSkills();
+  }, []);
+
+  const fetchSkills = async () => {
+    setLoading(true);
+    try {
+      const data = await apiService.getSkills();
+      setSkills(data || []);
+    } catch (error) {
+      console.error('Error fetching skills:', error);
+      alert('Failed to load skills. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
@@ -75,10 +72,17 @@ const Skills: React.FC = () => {
     );
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = async (id: number) => {
     if (window.confirm('Are you sure you want to delete this skill?')) {
-      setSkills(skills.filter(s => s.id !== id));
-      setSelectedItems(selectedItems.filter(i => i !== id));
+      try {
+        await apiService.deleteSkill(id);
+        setSkills(skills.filter(s => s.id !== id));
+        setSelectedItems(selectedItems.filter(i => i !== id));
+        alert('Skill deleted successfully!');
+      } catch (error: any) {
+        console.error('Error deleting skill:', error);
+        alert(`Failed to delete skill: ${error.message || 'Unknown error'}`);
+      }
     }
   };
 
@@ -94,21 +98,34 @@ const Skills: React.FC = () => {
     setShowAddModal(true);
   };
 
-  const handleSave = () => {
-    if (!formData.name.trim()) return;
-    
-    if (editingItem) {
-      setSkills(skills.map(s => 
-        s.id === editingItem.id 
-          ? { ...s, name: formData.name, description: formData.description }
-          : s
-      ));
-    } else {
-      const newId = Math.max(...skills.map(s => s.id), 0) + 1;
-      setSkills([...skills, { id: newId, name: formData.name, description: formData.description }]);
+  const handleSave = async () => {
+    if (!formData.name.trim()) {
+      alert('Skill name is required');
+      return;
     }
-    setShowAddModal(false);
-    setFormData({ name: '', description: '' });
+    
+    try {
+      if (editingItem) {
+        const updated = await apiService.updateSkill(editingItem.id, {
+          name: formData.name,
+          description: formData.description || undefined
+        });
+        setSkills(skills.map(s => s.id === editingItem.id ? updated : s));
+        alert('Skill updated successfully!');
+      } else {
+        const newSkill = await apiService.createSkill({
+          name: formData.name,
+          description: formData.description || undefined
+        });
+        setSkills([...skills, newSkill]);
+        alert('Skill created successfully!');
+      }
+      setShowAddModal(false);
+      setFormData({ name: '', description: '' });
+    } catch (error: any) {
+      console.error('Error saving skill:', error);
+      alert(`Failed to save skill: ${error.message || 'Unknown error'}`);
+    }
   };
 
   return (
@@ -195,55 +212,69 @@ const Skills: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {skills.map(skill => (
-                  <tr key={skill.id} style={{ borderBottom: `1px solid ${COLORS.border}`, backgroundColor: COLORS.white }}>
-                    <td style={{ padding: '16px' }}>
-                      <input
-                        type="checkbox"
-                        checked={selectedItems.includes(skill.id)}
-                        onChange={() => handleSelectItem(skill.id)}
-                      />
-                    </td>
-                    <td style={{ padding: '16px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: TYPOGRAPHY.textImportant.fontSize, color: COLORS.text }}>
-                      {skill.name}
-                    </td>
-                    <td style={{ padding: '16px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: TYPOGRAPHY.textImportant.fontSize, color: COLORS.primary }}>
-                      {skill.description}
-                    </td>
-                    <td style={{ padding: '16px', textAlign: 'center' }}>
-                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                        <button
-                          onClick={() => handleDelete(skill.id)}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            cursor: 'pointer',
-                            color: COLORS.textLight,
-                            fontSize: '18px',
-                            padding: '4px 8px',
-                          }}
-                          title="Delete"
-                        >
-                          🗑️
-                        </button>
-                        <button
-                          onClick={() => handleEdit(skill)}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            cursor: 'pointer',
-                            color: COLORS.textLight,
-                            fontSize: '18px',
-                            padding: '4px 8px',
-                          }}
-                          title="Edit"
-                        >
-                          ✏️
-                        </button>
-                      </div>
+                {loading ? (
+                  <tr>
+                    <td colSpan={4} style={{ padding: '40px', textAlign: 'center', color: COLORS.textLight }}>
+                      Loading skills...
                     </td>
                   </tr>
-                ))}
+                ) : skills.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} style={{ padding: '40px', textAlign: 'center', color: COLORS.textLight }}>
+                      No skills found. Click "Add" to create a new skill.
+                    </td>
+                  </tr>
+                ) : (
+                  skills.map(skill => (
+                    <tr key={skill.id} style={{ borderBottom: `1px solid ${COLORS.border}`, backgroundColor: COLORS.white }}>
+                      <td style={{ padding: '16px' }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedItems.includes(skill.id)}
+                          onChange={() => handleSelectItem(skill.id)}
+                        />
+                      </td>
+                      <td style={{ padding: '16px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: TYPOGRAPHY.textImportant.fontSize, color: COLORS.text }}>
+                        {skill.name}
+                      </td>
+                      <td style={{ padding: '16px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: TYPOGRAPHY.textImportant.fontSize, color: COLORS.primary }}>
+                        {skill.description}
+                      </td>
+                      <td style={{ padding: '16px', textAlign: 'center' }}>
+                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                          <button
+                            onClick={() => handleDelete(skill.id)}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              cursor: 'pointer',
+                              color: COLORS.textLight,
+                              fontSize: '18px',
+                              padding: '4px 8px',
+                            }}
+                            title="Delete"
+                          >
+                            🗑️
+                          </button>
+                          <button
+                            onClick={() => handleEdit(skill)}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              cursor: 'pointer',
+                              color: COLORS.textLight,
+                              fontSize: '18px',
+                              padding: '4px 8px',
+                            }}
+                            title="Edit"
+                          >
+                            ✏️
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

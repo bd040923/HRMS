@@ -3,9 +3,10 @@
  * Copyright (C) 2024 Arithwise Inc.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import AdminLayout from './AdminLayout';
 import ProtectedRoute from '../../components/ProtectedRoute';
+import { apiService } from '../../services/api';
 
 const COLORS = {
   primary: '#78176b',
@@ -28,22 +29,66 @@ const TYPOGRAPHY = {
 
 const GeneralInformation: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState({
-    organizationName: 'arithwise_hrms',
-    registrationNumber: '1234',
-    taxId: '5678',
-    phone: '0123456789',
-    fax: '9101',
-    email: 'info@orangehrm.com',
-    addressStreet1: '538 Teal Plaza',
-    addressStreet2: 'Mysore',
-    city: 'Secaucus',
-    stateProvince: 'NJ',
-    zipPostalCode: '51217',
-    country: 'United States',
-    numberOfEmployees: '122',
-    notes: 'HRM Software',
+    organizationName: '',
+    registrationNumber: '',
+    taxId: '',
+    phone: '',
+    fax: '',
+    email: '',
+    addressStreet1: '',
+    addressStreet2: '',
+    city: '',
+    stateProvince: '',
+    zipPostalCode: '',
+    country: '',
+    numberOfEmployees: '',
+    notes: '',
   });
+
+  // Fetch organization data on component mount
+  useEffect(() => {
+    fetchOrganizationInfo();
+  }, []);
+
+  const fetchOrganizationInfo = async () => {
+    try {
+      setLoading(true);
+      const data = await apiService.getOrganizationGeneralInfo();
+      
+      // Check if data is valid
+      if (!data || typeof data !== 'object') {
+        console.warn('Invalid response from API:', data);
+        return; // Keep default empty form
+      }
+      
+      setFormData({
+        organizationName: data.name || '',
+        registrationNumber: data.registration_number || '',
+        taxId: data.tax_id || '',
+        phone: data.phone || '',
+        fax: data.fax || '',
+        email: data.email || '',
+        addressStreet1: data.street1 || '',
+        addressStreet2: data.street2 || '',
+        city: data.city || '',
+        stateProvince: data.province || '',
+        zipPostalCode: data.zip_code || '',
+        country: data.country || '',
+        numberOfEmployees: data.number_of_employees?.toString() || '',
+        notes: data.note || '',
+      });
+    } catch (error: any) {
+      console.error('Error fetching organization info:', error);
+      // Only show alert if it's a real error, not just empty data
+      if (error?.status !== 200 && error?.message) {
+        alert(`Failed to load organization information: ${error.message}`);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData({
@@ -52,11 +97,45 @@ const GeneralInformation: React.FC = () => {
     });
   };
 
-  const handleSave = () => {
-    // Here you would save to backend
-    setIsEditing(false);
-    // Show success message
-    alert('Organization information saved successfully!');
+  const handleSave = async () => {
+    if (!formData.organizationName.trim()) {
+      alert('Organization name is required');
+      return;
+    }
+
+    try {
+      const result = await apiService.updateOrganizationGeneralInfo({
+        name: formData.organizationName,
+        registration_number: formData.registrationNumber || undefined,
+        tax_id: formData.taxId || undefined,
+        phone: formData.phone || undefined,
+        fax: formData.fax || undefined,
+        email: formData.email || undefined,
+        street1: formData.addressStreet1 || undefined,
+        street2: formData.addressStreet2 || undefined,
+        city: formData.city || undefined,
+        province: formData.stateProvince || undefined,
+        zip_code: formData.zipPostalCode || undefined,
+        country: formData.country || undefined,
+        note: formData.notes || undefined,
+        number_of_employees: formData.numberOfEmployees ? parseInt(formData.numberOfEmployees) : undefined,
+      });
+      
+      // Verify result is valid
+      if (result && typeof result === 'object') {
+        console.log('✅ Organization info saved:', result);
+        setIsEditing(false);
+        alert('Organization information saved successfully!');
+        // Optionally refresh the data
+        fetchOrganizationInfo();
+      } else {
+        throw new Error('Invalid response from server');
+      }
+    } catch (error: any) {
+      console.error('❌ Error saving organization info:', error);
+      const errorMessage = error?.message || error?.error || 'Unknown error occurred';
+      alert(`Failed to save organization information: ${errorMessage}`);
+    }
   };
 
   const handleEdit = () => {
@@ -96,6 +175,11 @@ const GeneralInformation: React.FC = () => {
               }}>
                 General Information
               </h2>
+              {loading && (
+                <span style={{ color: COLORS.textLight, fontSize: TYPOGRAPHY.textNote.fontSize }}>
+                  Loading...
+                </span>
+              )}
               {!isEditing && (
                 <button
                   onClick={handleEdit}

@@ -3,9 +3,10 @@
  * Copyright (C) 2024 Arithwise Inc.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import AdminLayout from './AdminLayout';
 import ProtectedRoute from '../../components/ProtectedRoute';
+import { apiService } from '../../services/api';
 
 const COLORS = {
   primary: '#78176b',
@@ -32,18 +33,29 @@ interface Language {
 }
 
 const Languages: React.FC = () => {
-  const [languages, setLanguages] = useState<Language[]>([
-    { id: 1, name: 'Arabic' },
-    { id: 2, name: 'Chinese' },
-    { id: 3, name: 'English' },
-    { id: 4, name: 'French' },
-    { id: 5, name: 'Russian' },
-    { id: 6, name: 'Spanish' },
-  ]);
+  const [languages, setLanguages] = useState<Language[]>([]);
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingItem, setEditingItem] = useState<Language | null>(null);
   const [formData, setFormData] = useState({ name: '' });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchLanguages();
+  }, []);
+
+  const fetchLanguages = async () => {
+    setLoading(true);
+    try {
+      const data = await apiService.getLanguages();
+      setLanguages(data || []);
+    } catch (error) {
+      console.error('Error fetching languages:', error);
+      alert('Failed to load languages. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
@@ -59,10 +71,17 @@ const Languages: React.FC = () => {
     );
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = async (id: number) => {
     if (window.confirm('Are you sure you want to delete this language?')) {
-      setLanguages(languages.filter(l => l.id !== id));
-      setSelectedItems(selectedItems.filter(i => i !== id));
+      try {
+        await apiService.deleteLanguage(id);
+        setLanguages(languages.filter(l => l.id !== id));
+        setSelectedItems(selectedItems.filter(i => i !== id));
+        alert('Language deleted successfully!');
+      } catch (error: any) {
+        console.error('Error deleting language:', error);
+        alert(`Failed to delete language: ${error.message || 'Unknown error'}`);
+      }
     }
   };
 
@@ -78,21 +97,32 @@ const Languages: React.FC = () => {
     setShowAddModal(true);
   };
 
-  const handleSave = () => {
-    if (!formData.name.trim()) return;
-    
-    if (editingItem) {
-      setLanguages(languages.map(l => 
-        l.id === editingItem.id 
-          ? { ...l, name: formData.name }
-          : l
-      ));
-    } else {
-      const newId = Math.max(...languages.map(l => l.id), 0) + 1;
-      setLanguages([...languages, { id: newId, name: formData.name }]);
+  const handleSave = async () => {
+    if (!formData.name.trim()) {
+      alert('Language name is required');
+      return;
     }
-    setShowAddModal(false);
-    setFormData({ name: '' });
+    
+    try {
+      if (editingItem) {
+        const updated = await apiService.updateLanguage(editingItem.id, {
+          name: formData.name
+        });
+        setLanguages(languages.map(l => l.id === editingItem.id ? updated : l));
+        alert('Language updated successfully!');
+      } else {
+        const newLanguage = await apiService.createLanguage({
+          name: formData.name
+        });
+        setLanguages([...languages, newLanguage]);
+        alert('Language created successfully!');
+      }
+      setShowAddModal(false);
+      setFormData({ name: '' });
+    } catch (error: any) {
+      console.error('Error saving language:', error);
+      alert(`Failed to save language: ${error.message || 'Unknown error'}`);
+    }
   };
 
   return (
@@ -176,52 +206,66 @@ const Languages: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {languages.map(language => (
-                  <tr key={language.id} style={{ borderBottom: `1px solid ${COLORS.border}`, backgroundColor: COLORS.white }}>
-                    <td style={{ padding: '16px' }}>
-                      <input
-                        type="checkbox"
-                        checked={selectedItems.includes(language.id)}
-                        onChange={() => handleSelectItem(language.id)}
-                      />
-                    </td>
-                    <td style={{ padding: '16px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: TYPOGRAPHY.textImportant.fontSize, color: COLORS.text }}>
-                      {language.name}
-                    </td>
-                    <td style={{ padding: '16px', textAlign: 'center' }}>
-                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                        <button
-                          onClick={() => handleDelete(language.id)}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            cursor: 'pointer',
-                            color: COLORS.textLight,
-                            fontSize: '18px',
-                            padding: '4px 8px',
-                          }}
-                          title="Delete"
-                        >
-                          🗑️
-                        </button>
-                        <button
-                          onClick={() => handleEdit(language)}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            cursor: 'pointer',
-                            color: COLORS.textLight,
-                            fontSize: '18px',
-                            padding: '4px 8px',
-                          }}
-                          title="Edit"
-                        >
-                          ✏️
-                        </button>
-                      </div>
+                {loading ? (
+                  <tr>
+                    <td colSpan={3} style={{ padding: '40px', textAlign: 'center', color: COLORS.textLight }}>
+                      Loading languages...
                     </td>
                   </tr>
-                ))}
+                ) : languages.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} style={{ padding: '40px', textAlign: 'center', color: COLORS.textLight }}>
+                      No languages found. Click "Add" to create a new language.
+                    </td>
+                  </tr>
+                ) : (
+                  languages.map(language => (
+                    <tr key={language.id} style={{ borderBottom: `1px solid ${COLORS.border}`, backgroundColor: COLORS.white }}>
+                      <td style={{ padding: '16px' }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedItems.includes(language.id)}
+                          onChange={() => handleSelectItem(language.id)}
+                        />
+                      </td>
+                      <td style={{ padding: '16px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: TYPOGRAPHY.textImportant.fontSize, color: COLORS.text }}>
+                        {language.name}
+                      </td>
+                      <td style={{ padding: '16px', textAlign: 'center' }}>
+                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                          <button
+                            onClick={() => handleDelete(language.id)}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              cursor: 'pointer',
+                              color: COLORS.textLight,
+                              fontSize: '18px',
+                              padding: '4px 8px',
+                            }}
+                            title="Delete"
+                          >
+                            🗑️
+                          </button>
+                          <button
+                            onClick={() => handleEdit(language)}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              cursor: 'pointer',
+                              color: COLORS.textLight,
+                              fontSize: '18px',
+                              padding: '4px 8px',
+                            }}
+                            title="Edit"
+                          >
+                            ✏️
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

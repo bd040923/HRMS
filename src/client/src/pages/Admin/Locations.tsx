@@ -3,9 +3,10 @@
  * Copyright (C) 2024 Arithwise Inc.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import AdminLayout from './AdminLayout';
 import ProtectedRoute from '../../components/ProtectedRoute';
+import { apiService } from '../../services/api';
 
 const COLORS = {
   primary: '#78176b',
@@ -36,15 +37,11 @@ interface Location {
 }
 
 const Locations: React.FC = () => {
-  const [locations, setLocations] = useState<Location[]>([
-    { id: 1, name: 'Canadian Regional HQ', city: 'Ottawa', country: 'Canada', phone: '1-876-267-6999', numberOfEmployees: 0 },
-    { id: 2, name: 'HQ - CA, USA', city: 'California', country: 'United States', phone: '1-888-452-1508', numberOfEmployees: 0 },
-    { id: 3, name: 'New York Sales Office', city: 'New York', country: 'United States', phone: '1 (866) 781-7104', numberOfEmployees: 2 },
-    { id: 4, name: 'Texas R&D', city: 'Texas', country: 'United States', phone: '1 (866) 791-7204', numberOfEmployees: 4 },
-  ]);
+  const [locations, setLocations] = useState<Location[]>([]);
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingItem, setEditingItem] = useState<Location | null>(null);
+  const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState({
     name: '',
     city: '',
@@ -57,6 +54,35 @@ const Locations: React.FC = () => {
     city: '',
     country: '',
   });
+
+  // Fetch locations from API
+  useEffect(() => {
+    fetchLocations();
+  }, [searchFilters]);
+
+  const fetchLocations = async () => {
+    try {
+      setLoading(true);
+      const data = await apiService.getLocations({
+        name: searchFilters.name || undefined,
+        city: searchFilters.city || undefined,
+        country: searchFilters.country || undefined,
+      });
+      setLocations(data.map((item: any) => ({
+        id: item.id,
+        name: item.name,
+        city: item.city || '',
+        country: item.country || '',
+        phone: item.phone || '',
+        numberOfEmployees: item.number_of_employees || 0,
+      })));
+    } catch (error) {
+      console.error('Error fetching locations:', error);
+      alert('Failed to load locations');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
@@ -72,10 +98,17 @@ const Locations: React.FC = () => {
     );
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = async (id: number) => {
     if (window.confirm('Are you sure you want to delete this location?')) {
-      setLocations(locations.filter(l => l.id !== id));
-      setSelectedItems(selectedItems.filter(i => i !== id));
+      try {
+        await apiService.deleteLocation(id);
+        setLocations(locations.filter(l => l.id !== id));
+        setSelectedItems(selectedItems.filter(i => i !== id));
+        alert('Location deleted successfully');
+      } catch (error: any) {
+        console.error('Error deleting location:', error);
+        alert(`Failed to delete location: ${error.message || 'Unknown error'}`);
+      }
     }
   };
 
@@ -97,30 +130,70 @@ const Locations: React.FC = () => {
     setShowAddModal(true);
   };
 
-  const handleSave = () => {
-    if (!formData.name.trim()) return;
-    
-    if (editingItem) {
-      setLocations(locations.map(l => 
-        l.id === editingItem.id 
-          ? { ...l, ...formData }
-          : l
-      ));
-    } else {
-      const newId = Math.max(...locations.map(l => l.id), 0) + 1;
-      setLocations([...locations, { id: newId, ...formData }]);
+  const handleSave = async () => {
+    if (!formData.name.trim()) {
+      alert('Location name is required');
+      return;
     }
-    setShowAddModal(false);
-    setFormData({ name: '', city: '', country: '', phone: '', numberOfEmployees: 0 });
+
+    try {
+      if (editingItem) {
+        // Update existing location
+        const updated = await apiService.updateLocation(editingItem.id, {
+          name: formData.name,
+          city: formData.city || undefined,
+          country: formData.country || undefined,
+          phone: formData.phone || undefined,
+          number_of_employees: formData.numberOfEmployees,
+        });
+        setLocations(locations.map(l => 
+          l.id === editingItem.id 
+            ? { 
+                id: updated.id, 
+                name: updated.name, 
+                city: updated.city || '', 
+                country: updated.country || '', 
+                phone: updated.phone || '', 
+                numberOfEmployees: updated.number_of_employees || 0 
+              }
+            : l
+        ));
+        alert('Location updated successfully');
+      } else {
+        // Create new location
+        const newLocation = await apiService.createLocation({
+          name: formData.name,
+          city: formData.city || undefined,
+          country: formData.country || undefined,
+          phone: formData.phone || undefined,
+          number_of_employees: formData.numberOfEmployees,
+        });
+        setLocations([...locations, { 
+          id: newLocation.id, 
+          name: newLocation.name, 
+          city: newLocation.city || '', 
+          country: newLocation.country || '', 
+          phone: newLocation.phone || '', 
+          numberOfEmployees: newLocation.number_of_employees || 0 
+        }]);
+        alert('Location created successfully');
+      }
+      setShowAddModal(false);
+      setFormData({ name: '', city: '', country: '', phone: '', numberOfEmployees: 0 });
+    } catch (error: any) {
+      console.error('Error saving location:', error);
+      alert(`Failed to save location: ${error.message || 'Unknown error'}`);
+    }
   };
 
-  const filteredLocations = locations.filter(location => {
-    return (
-      (!searchFilters.name || location.name.toLowerCase().includes(searchFilters.name.toLowerCase())) &&
-      (!searchFilters.city || location.city.toLowerCase().includes(searchFilters.city.toLowerCase())) &&
-      (!searchFilters.country || location.country.toLowerCase().includes(searchFilters.country.toLowerCase()))
-    );
-  });
+  const handleSearch = () => {
+    fetchLocations();
+  };
+
+  const handleReset = () => {
+    setSearchFilters({ name: '', city: '', country: '' });
+    // fetchLocations will be called automatically via useEffect
+  };
 
   return (
     <ProtectedRoute requiredPermission="manage_departments">
@@ -210,7 +283,7 @@ const Locations: React.FC = () => {
             </div>
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
               <button
-                onClick={() => setSearchFilters({ name: '', city: '', country: '' })}
+                onClick={handleReset}
                 style={{
                   padding: '8px 20px',
                   backgroundColor: COLORS.white,
@@ -225,6 +298,7 @@ const Locations: React.FC = () => {
                 Reset
               </button>
               <button
+                onClick={handleSearch}
                 style={{
                   padding: '8px 20px',
                   backgroundColor: COLORS.green,
@@ -270,7 +344,7 @@ const Locations: React.FC = () => {
             fontFamily: TYPOGRAPHY.fontFamily,
             marginBottom: '16px',
           }}>
-            ({filteredLocations.length}) Records Found
+            {loading ? 'Loading...' : `(${locations.length}) Records Found`}
           </div>
 
           {/* Table */}
@@ -286,7 +360,7 @@ const Locations: React.FC = () => {
                   <th style={{ padding: '12px 16px', textAlign: 'left', width: '50px' }}>
                     <input
                       type="checkbox"
-                      checked={selectedItems.length === filteredLocations.length && filteredLocations.length > 0}
+                      checked={selectedItems.length === locations.length && locations.length > 0}
                       onChange={handleSelectAll}
                     />
                   </th>
@@ -311,7 +385,20 @@ const Locations: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {filteredLocations.map(location => (
+                {loading ? (
+                  <tr>
+                    <td colSpan={7} style={{ padding: '20px', textAlign: 'center', color: COLORS.textLight }}>
+                      Loading locations...
+                    </td>
+                  </tr>
+                ) : locations.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} style={{ padding: '20px', textAlign: 'center', color: COLORS.textLight }}>
+                      No locations found. Click "+ Add" to create one.
+                    </td>
+                  </tr>
+                ) : (
+                  locations.map(location => (
                   <tr key={location.id} style={{ borderBottom: `1px solid ${COLORS.border}`, backgroundColor: COLORS.white }}>
                     <td style={{ padding: '16px' }}>
                       <input
@@ -368,7 +455,8 @@ const Locations: React.FC = () => {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  ))
+                )}
               </tbody>
             </table>
           </div>

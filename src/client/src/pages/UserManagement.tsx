@@ -3,10 +3,11 @@
  * Copyright (C) 2024 Arithwise Inc.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import ProtectedRoute from '../components/ProtectedRoute';
 import AdminLayout from './Admin/AdminLayout';
+import { apiService } from '../services/api';
 
 const COLORS = {
   primary: '#78176b',
@@ -38,10 +39,9 @@ interface User {
 
 const UserManagement: React.FC = () => {
   const { isAdmin } = useAuth();
-  const [users, setUsers] = useState<User[]>([
-    { id: 1, username: 'admin', email: 'admin@arithwise.com', firstName: 'Admin', lastName: 'User', role: 'admin', status: 'enabled', employeeName: 'Admin User' },
-    { id: 2, username: 'user', email: 'user@arithwise.com', firstName: 'Regular', lastName: 'User', role: 'employee', status: 'enabled', employeeName: 'Regular User' },
-  ]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingItem, setEditingItem] = useState<User | null>(null);
@@ -55,6 +55,35 @@ const UserManagement: React.FC = () => {
     status: ''
   });
   const [showFilters, setShowFilters] = useState(true);
+
+  // Fetch users from API on component mount
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await apiService.getUsers();
+        // Map API response to User interface
+        const mappedUsers: User[] = data.map((u: any) => ({
+          id: u.id,
+          username: u.username,
+          email: u.email,
+          firstName: u.first_name,
+          lastName: u.last_name,
+          role: u.role as 'admin' | 'employee' | 'manager',
+          status: (u.status === 'active' ? 'enabled' : 'disabled') as 'enabled' | 'disabled',
+          employeeName: u.employee_name || `${u.first_name} ${u.last_name}`
+        }));
+        setUsers(mappedUsers);
+      } catch (err: any) {
+        console.error('Error fetching users:', err);
+        setError(err.message || 'Failed to load users');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchUsers();
+  }, []);
 
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
@@ -70,10 +99,17 @@ const UserManagement: React.FC = () => {
     );
   };
 
-  const handleDelete = (id: number) => {
-    if (window.confirm('Are you sure you want to delete this user?')) {
+  const handleDelete = async (id: number) => {
+    if (!window.confirm('Are you sure you want to delete this user?')) return;
+    
+    try {
+      await apiService.deleteUser(id);
       setUsers(users.filter(u => u.id !== id));
       setSelectedItems(selectedItems.filter(i => i !== id));
+      alert('User deleted successfully');
+    } catch (err: any) {
+      console.error('Error deleting user:', err);
+      alert('Failed to delete user: ' + (err.message || 'Unknown error'));
     }
   };
 
@@ -97,24 +133,82 @@ const UserManagement: React.FC = () => {
     setShowAddModal(true);
   };
 
-  const handleSave = () => {
-    if (editingItem) {
-      setUsers(users.map(u => 
-        u.id === editingItem.id 
-          ? { ...u, ...formData, employeeName: formData.employeeName || `${formData.firstName} ${formData.lastName}` }
-          : u
-      ));
-    } else {
-      const newId = Math.max(...users.map(u => u.id), 0) + 1;
-      setUsers([...users, { 
-        id: newId, 
-        ...formData, 
-        status: 'enabled',
-        employeeName: formData.employeeName || `${formData.firstName} ${formData.lastName}`
-      }]);
+  const handleSave = async () => {
+    // Validation
+    if (!formData.username || !formData.email || !formData.firstName || !formData.lastName) {
+      alert('Please fill in all required fields');
+      return;
     }
-    setShowAddModal(false);
-    setFormData({ username: '', email: '', firstName: '', lastName: '', role: 'employee', password: '', employeeName: '' });
+    if (!editingItem && !formData.password) {
+      alert('Password is required for new users');
+      return;
+    }
+
+    try {
+      if (editingItem) {
+        // Update existing user
+        const updateData: any = {
+          username: formData.username,
+          email: formData.email,
+          first_name: formData.firstName,
+          last_name: formData.lastName,
+          role: formData.role,
+          status: editingItem.status === 'enabled' ? 'active' : 'inactive' // Map 'enabled' to 'active' for API
+        };
+        if (formData.password) {
+          updateData.password = formData.password;
+        }
+        const updated = await apiService.updateUser(editingItem.id, updateData);
+        
+        // Map API response back to User interface
+        const updatedUser: User = {
+          id: updated.id,
+          username: updated.username,
+          email: updated.email,
+          firstName: updated.first_name,
+          lastName: updated.last_name,
+          role: updated.role as 'admin' | 'employee' | 'manager',
+          status: updated.status === 'active' ? 'enabled' : 'disabled',
+          employeeName: updated.employee_name || `${updated.first_name} ${updated.last_name}`
+        };
+        
+        setUsers(users.map(u => u.id === editingItem.id ? updatedUser : u));
+        alert('User updated successfully');
+      } else {
+        // Create new user
+        const newUser = await apiService.createUser({
+          username: formData.username,
+          email: formData.email,
+          password: formData.password,
+          first_name: formData.firstName,
+          last_name: formData.lastName,
+          role: formData.role,
+          status: 'active'
+        });
+        
+        // Map API response back to User interface
+        const mappedUser: User = {
+          id: newUser.id,
+          username: newUser.username,
+          email: newUser.email,
+          firstName: newUser.first_name,
+          lastName: newUser.last_name,
+          role: newUser.role as 'admin' | 'employee' | 'manager',
+          status: newUser.status === 'active' ? 'enabled' : 'disabled',
+          employeeName: newUser.employee_name || `${newUser.first_name} ${newUser.last_name}`
+        };
+        
+        setUsers([...users, mappedUser]);
+        alert('User created successfully');
+      }
+      
+      setShowAddModal(false);
+      setFormData({ username: '', email: '', firstName: '', lastName: '', role: 'employee', password: '', employeeName: '' });
+      setEditingItem(null);
+    } catch (err: any) {
+      console.error('Error saving user:', err);
+      alert('Failed to save user: ' + (err.message || 'Unknown error'));
+    }
   };
 
   const handleReset = () => {
@@ -146,6 +240,44 @@ const UserManagement: React.FC = () => {
         <h1 style={{ color: '#dc3545', fontSize: '2rem', fontWeight: 500 }}>Access Denied</h1>
         <p style={{ fontSize: '16px', color: '#666', marginTop: '16px' }}>Admin access required.</p>
       </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <ProtectedRoute requiredRole="admin">
+        <AdminLayout title="System Users" breadcrumbs={['Admin']}>
+          <div style={{ padding: '40px', textAlign: 'center', fontFamily: TYPOGRAPHY.fontFamily }}>
+            <div>Loading users...</div>
+          </div>
+        </AdminLayout>
+      </ProtectedRoute>
+    );
+  }
+
+  if (error) {
+    return (
+      <ProtectedRoute requiredRole="admin">
+        <AdminLayout title="System Users" breadcrumbs={['Admin']}>
+          <div style={{ padding: '40px', textAlign: 'center', fontFamily: TYPOGRAPHY.fontFamily }}>
+            <div style={{ color: '#dc3545' }}>Error: {error}</div>
+            <button
+              onClick={() => window.location.reload()}
+              style={{
+                marginTop: '16px',
+                padding: '8px 16px',
+                backgroundColor: COLORS.primary,
+                color: COLORS.white,
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer'
+              }}
+            >
+              Retry
+            </button>
+          </div>
+        </AdminLayout>
+      </ProtectedRoute>
     );
   }
 

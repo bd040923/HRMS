@@ -1394,6 +1394,1006 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
+// ============================================================================
+// LEAVE MANAGEMENT API ENDPOINTS
+// ============================================================================
+
+// Leave Types
+app.get('/api/leave-types', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM leave_types WHERE status != $1 ORDER BY name', ['deleted']);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching leave types:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/leave-types', async (req, res) => {
+  try {
+    const { name, description, entitlement_days } = req.body;
+    const result = await pool.query(
+      'INSERT INTO leave_types (name, description, entitlement_days) VALUES ($1, $2, $3) RETURNING *',
+      [name, description, entitlement_days || 0]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating leave type:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/leave-types/:id', async (req, res) => {
+  try {
+    const { name, description, entitlement_days, status } = req.body;
+    const result = await pool.query(
+      'UPDATE leave_types SET name = $1, description = $2, entitlement_days = $3, status = $4, updated_at = CURRENT_TIMESTAMP WHERE id = $5 RETURNING *',
+      [name, description, entitlement_days, status, req.params.id]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating leave type:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/leave-types/:id', async (req, res) => {
+  try {
+    await pool.query('UPDATE leave_types SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', ['deleted', req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting leave type:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Leave Requests
+app.get('/api/leave-requests', async (req, res) => {
+  try {
+    const { employee_id, status } = req.query;
+    let query = `
+      SELECT lr.*, e.first_name || ' ' || e.last_name as employee_name, 
+             lt.name as leave_type_name
+      FROM leave_requests lr
+      JOIN employees e ON lr.employee_id = e.id
+      JOIN leave_types lt ON lr.leave_type_id = lt.id
+      WHERE 1=1
+    `;
+    const params = [];
+    let paramCount = 1;
+    
+    if (employee_id) {
+      query += ` AND lr.employee_id = $${paramCount++}`;
+      params.push(employee_id);
+    }
+    if (status) {
+      query += ` AND lr.status = $${paramCount++}`;
+      params.push(status);
+    }
+    query += ' ORDER BY lr.date_applied DESC';
+    
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching leave requests:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/leave-requests', async (req, res) => {
+  try {
+    const { employee_id, leave_type_id, from_date, to_date, number_of_days, comments } = req.body;
+    const result = await pool.query(
+      `INSERT INTO leave_requests (employee_id, leave_type_id, from_date, to_date, number_of_days, comments, applied_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $1) RETURNING *`,
+      [employee_id, leave_type_id, from_date, to_date, number_of_days, comments]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating leave request:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/leave-requests/:id', async (req, res) => {
+  try {
+    const { status, approved_by } = req.body;
+    const result = await pool.query(
+      `UPDATE leave_requests SET status = $1, approved_by = $2, approved_date = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP 
+       WHERE id = $3 RETURNING *`,
+      [status, approved_by, req.params.id]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating leave request:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Holidays
+app.get('/api/holidays', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM holidays ORDER BY date');
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching holidays:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/holidays', async (req, res) => {
+  try {
+    const { name, date, full_day, repeats_annually } = req.body;
+    const result = await pool.query(
+      'INSERT INTO holidays (name, date, full_day, repeats_annually) VALUES ($1, $2, $3, $4) RETURNING *',
+      [name, date, full_day !== false, repeats_annually === true]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating holiday:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/holidays/:id', async (req, res) => {
+  try {
+    const { name, date, full_day, repeats_annually } = req.body;
+    const result = await pool.query(
+      'UPDATE holidays SET name = $1, date = $2, full_day = $3, repeats_annually = $4, updated_at = CURRENT_TIMESTAMP WHERE id = $5 RETURNING *',
+      [name, date, full_day !== false, repeats_annually === true, req.params.id]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating holiday:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/holidays/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM holidays WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting holiday:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================================================
+// TIME & ATTENDANCE API ENDPOINTS
+// ============================================================================
+
+// Attendance Records
+app.get('/api/attendance-records', async (req, res) => {
+  try {
+    const { employee_id, date } = req.query;
+    let query = `
+      SELECT ar.*, e.first_name || ' ' || e.last_name as employee_name
+      FROM attendance_records ar
+      JOIN employees e ON ar.employee_id = e.id
+      WHERE 1=1
+    `;
+    const params = [];
+    let paramCount = 1;
+    
+    if (employee_id) {
+      query += ` AND ar.employee_id = $${paramCount++}`;
+      params.push(employee_id);
+    }
+    if (date) {
+      query += ` AND ar.punch_in_date = $${paramCount++}`;
+      params.push(date);
+    }
+    query += ' ORDER BY ar.punch_in_date DESC, ar.punch_in_time DESC';
+    
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching attendance records:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/attendance-records/punch-in', async (req, res) => {
+  try {
+    const { employee_id, punch_in_date, punch_in_time, punch_in_note } = req.body;
+    const result = await pool.query(
+      `INSERT INTO attendance_records (employee_id, punch_in_date, punch_in_time, punch_in_note, status)
+       VALUES ($1, $2, $3, $4, 'punched_in') RETURNING *`,
+      [employee_id, punch_in_date, punch_in_time, punch_in_note]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error punching in:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/attendance-records/:id/punch-out', async (req, res) => {
+  try {
+    const { punch_out_date, punch_out_time, punch_out_note } = req.body;
+    const record = await pool.query('SELECT * FROM attendance_records WHERE id = $1', [req.params.id]);
+    if (record.rows.length === 0) {
+      return res.status(404).json({ error: 'Attendance record not found' });
+    }
+    
+    const punchIn = new Date(`${record.rows[0].punch_in_date}T${record.rows[0].punch_in_time}`);
+    const punchOut = new Date(`${punch_out_date}T${punch_out_time}`);
+    const durationHours = (punchOut - punchIn) / (1000 * 60 * 60);
+    
+    const result = await pool.query(
+      `UPDATE attendance_records 
+       SET punch_out_date = $1, punch_out_time = $2, punch_out_note = $3, 
+           duration_hours = $4, status = 'punched_out', updated_at = CURRENT_TIMESTAMP
+       WHERE id = $5 RETURNING *`,
+      [punch_out_date, punch_out_time, punch_out_note, durationHours, req.params.id]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error punching out:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Customers
+app.get('/api/customers', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM customers WHERE status = $1 ORDER BY name', ['active']);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching customers:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/customers', async (req, res) => {
+  try {
+    const { name, description } = req.body;
+    const result = await pool.query(
+      'INSERT INTO customers (name, description) VALUES ($1, $2) RETURNING *',
+      [name, description]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating customer:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/customers/:id', async (req, res) => {
+  try {
+    const { name, description, status } = req.body;
+    const result = await pool.query(
+      'UPDATE customers SET name = $1, description = $2, status = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4 RETURNING *',
+      [name, description, status, req.params.id]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating customer:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/customers/:id', async (req, res) => {
+  try {
+    await pool.query('UPDATE customers SET status = $1 WHERE id = $2', ['inactive', req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting customer:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Projects
+app.get('/api/projects', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT p.*, c.name as customer_name, 
+             e.first_name || ' ' || e.last_name as project_admin_name
+      FROM projects p
+      LEFT JOIN customers c ON p.customer_id = c.id
+      LEFT JOIN employees e ON p.project_admin_id = e.id
+      WHERE p.status = $1
+      ORDER BY p.name
+    `, ['active']);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching projects:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/projects', async (req, res) => {
+  try {
+    const { customer_id, name, description, project_admin_id } = req.body;
+    const result = await pool.query(
+      'INSERT INTO projects (customer_id, name, description, project_admin_id) VALUES ($1, $2, $3, $4) RETURNING *',
+      [customer_id, name, description, project_admin_id]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating project:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/projects/:id', async (req, res) => {
+  try {
+    const { name, description, project_admin_id, status } = req.body;
+    const result = await pool.query(
+      'UPDATE projects SET name = $1, description = $2, project_admin_id = $3, status = $4, updated_at = CURRENT_TIMESTAMP WHERE id = $5 RETURNING *',
+      [name, description, project_admin_id, status, req.params.id]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating project:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/projects/:id', async (req, res) => {
+  try {
+    await pool.query('UPDATE projects SET status = $1 WHERE id = $2', ['inactive', req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting project:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Timesheets
+app.get('/api/timesheets', async (req, res) => {
+  try {
+    const { employee_id, status } = req.query;
+    let query = `
+      SELECT t.*, e.first_name || ' ' || e.last_name as employee_name,
+             p.name as project_name
+      FROM timesheets t
+      JOIN employees e ON t.employee_id = e.id
+      LEFT JOIN projects p ON t.project_id = p.id
+      WHERE 1=1
+    `;
+    const params = [];
+    let paramCount = 1;
+    
+    if (employee_id) {
+      query += ` AND t.employee_id = $${paramCount++}`;
+      params.push(employee_id);
+    }
+    if (status) {
+      query += ` AND t.status = $${paramCount++}`;
+      params.push(status);
+    }
+    query += ' ORDER BY t.start_date DESC';
+    
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching timesheets:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/timesheets', async (req, res) => {
+  try {
+    const { employee_id, project_id, activity_id, start_date, end_date } = req.body;
+    const result = await pool.query(
+      'INSERT INTO timesheets (employee_id, project_id, activity_id, start_date, end_date) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [employee_id, project_id, activity_id, start_date, end_date]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating timesheet:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================================================
+// PERFORMANCE MANAGEMENT API ENDPOINTS
+// ============================================================================
+
+// KPIs
+app.get('/api/kpis', async (req, res) => {
+  try {
+    const { job_title_id } = req.query;
+    let query = `
+      SELECT k.*, jt.title as job_title_name
+      FROM kpis k
+      LEFT JOIN job_titles jt ON k.job_title_id = jt.id
+      WHERE 1=1
+    `;
+    const params = [];
+    if (job_title_id) {
+      query += ' AND k.job_title_id = $1';
+      params.push(job_title_id);
+    }
+    query += ' ORDER BY k.indicator';
+    
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching KPIs:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/kpis', async (req, res) => {
+  try {
+    const { indicator, job_title_id, min_rate, max_rate, is_default } = req.body;
+    const result = await pool.query(
+      'INSERT INTO kpis (indicator, job_title_id, min_rate, max_rate, is_default) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [indicator, job_title_id, min_rate || 0, max_rate || 100, is_default || false]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating KPI:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/kpis/:id', async (req, res) => {
+  try {
+    const { indicator, job_title_id, min_rate, max_rate, is_default } = req.body;
+    const result = await pool.query(
+      'UPDATE kpis SET indicator = $1, job_title_id = $2, min_rate = $3, max_rate = $4, is_default = $5, updated_at = CURRENT_TIMESTAMP WHERE id = $6 RETURNING *',
+      [indicator, job_title_id, min_rate, max_rate, is_default, req.params.id]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating KPI:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/kpis/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM kpis WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting KPI:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Performance Trackers
+app.get('/api/performance-trackers', async (req, res) => {
+  try {
+    const { employee_id } = req.query;
+    let query = `
+      SELECT pt.*, e.first_name || ' ' || e.last_name as employee_name
+      FROM performance_trackers pt
+      JOIN employees e ON pt.employee_id = e.id
+      WHERE 1=1
+    `;
+    const params = [];
+    if (employee_id) {
+      query += ' AND pt.employee_id = $1';
+      params.push(employee_id);
+    }
+    query += ' ORDER BY pt.added_date DESC';
+    
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching performance trackers:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/performance-trackers', async (req, res) => {
+  try {
+    const { employee_id, tracker_name } = req.body;
+    const result = await pool.query(
+      'INSERT INTO performance_trackers (employee_id, tracker_name) VALUES ($1, $2) RETURNING *',
+      [employee_id, tracker_name]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating performance tracker:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Performance Reviews
+app.get('/api/performance-reviews', async (req, res) => {
+  try {
+    const { employee_id, reviewer_id, review_status } = req.query;
+    let query = `
+      SELECT pr.*, e.first_name || ' ' || e.last_name as employee_name,
+             jt.title as job_title_name,
+             r.first_name || ' ' || r.last_name as reviewer_name
+      FROM performance_reviews pr
+      JOIN employees e ON pr.employee_id = e.id
+      LEFT JOIN job_titles jt ON pr.job_title_id = jt.id
+      LEFT JOIN employees r ON pr.reviewer_id = r.id
+      WHERE 1=1
+    `;
+    const params = [];
+    let paramCount = 1;
+    
+    if (employee_id) {
+      query += ` AND pr.employee_id = $${paramCount++}`;
+      params.push(employee_id);
+    }
+    if (reviewer_id) {
+      query += ` AND pr.reviewer_id = $${paramCount++}`;
+      params.push(reviewer_id);
+    }
+    if (review_status) {
+      query += ` AND pr.review_status = $${paramCount++}`;
+      params.push(review_status);
+    }
+    query += ' ORDER BY pr.review_period_start DESC';
+    
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching performance reviews:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/performance-reviews', async (req, res) => {
+  try {
+    const { employee_id, job_title_id, sub_unit, review_period_start, review_period_end, due_date, reviewer_id } = req.body;
+    const result = await pool.query(
+      `INSERT INTO performance_reviews (employee_id, job_title_id, sub_unit, review_period_start, review_period_end, due_date, reviewer_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [employee_id, job_title_id, sub_unit, review_period_start, review_period_end, due_date, reviewer_id]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating performance review:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================================================
+// MY INFO / EMPLOYEE PERSONAL DATA API ENDPOINTS
+// ============================================================================
+
+// Employee Personal Details
+app.get('/api/employees/:id/personal-details', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM employee_personal_details WHERE employee_id = $1', [req.params.id]);
+    res.json(result.rows[0] || null);
+  } catch (error) {
+    console.error('Error fetching personal details:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/employees/:id/personal-details', async (req, res) => {
+  try {
+    const { other_id, driver_license_number, license_expiry_date, nationality_id, marital_status, date_of_birth, gender, blood_type } = req.body;
+    const result = await pool.query(
+      `INSERT INTO employee_personal_details (employee_id, other_id, driver_license_number, license_expiry_date, nationality_id, marital_status, date_of_birth, gender, blood_type)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       ON CONFLICT (employee_id) 
+       DO UPDATE SET other_id = $2, driver_license_number = $3, license_expiry_date = $4, nationality_id = $5, 
+                     marital_status = $6, date_of_birth = $7, gender = $8, blood_type = $9, updated_at = CURRENT_TIMESTAMP
+       RETURNING *`,
+      [req.params.id, other_id, driver_license_number, license_expiry_date, nationality_id, marital_status, date_of_birth, gender, blood_type]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error saving personal details:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Employee Contact Details
+app.get('/api/employees/:id/contact-details', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM employee_contact_details WHERE employee_id = $1', [req.params.id]);
+    res.json(result.rows[0] || null);
+  } catch (error) {
+    console.error('Error fetching contact details:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/employees/:id/contact-details', async (req, res) => {
+  try {
+    const { street1, street2, city, state_province, zip_postal_code, country, home_telephone, mobile, work_telephone, work_email, other_email } = req.body;
+    const result = await pool.query(
+      `INSERT INTO employee_contact_details (employee_id, street1, street2, city, state_province, zip_postal_code, country, home_telephone, mobile, work_telephone, work_email, other_email)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+       ON CONFLICT (employee_id)
+       DO UPDATE SET street1 = $2, street2 = $3, city = $4, state_province = $5, zip_postal_code = $6, country = $7,
+                     home_telephone = $8, mobile = $9, work_telephone = $10, work_email = $11, other_email = $12, updated_at = CURRENT_TIMESTAMP
+       RETURNING *`,
+      [req.params.id, street1, street2, city, state_province, zip_postal_code, country, home_telephone, mobile, work_telephone, work_email, other_email]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error saving contact details:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Emergency Contacts
+app.get('/api/employees/:id/emergency-contacts', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM emergency_contacts WHERE employee_id = $1 ORDER BY name', [req.params.id]);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching emergency contacts:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/employees/:id/emergency-contacts', async (req, res) => {
+  try {
+    const { name, relationship, home_telephone, mobile, work_telephone } = req.body;
+    const result = await pool.query(
+      'INSERT INTO emergency_contacts (employee_id, name, relationship, home_telephone, mobile, work_telephone) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [req.params.id, name, relationship, home_telephone, mobile, work_telephone]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating emergency contact:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/emergency-contacts/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM emergency_contacts WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting emergency contact:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Dependents
+app.get('/api/employees/:id/dependents', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM dependents WHERE employee_id = $1 ORDER BY name', [req.params.id]);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching dependents:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/employees/:id/dependents', async (req, res) => {
+  try {
+    const { name, relationship, date_of_birth } = req.body;
+    const result = await pool.query(
+      'INSERT INTO dependents (employee_id, name, relationship, date_of_birth) VALUES ($1, $2, $3, $4) RETURNING *',
+      [req.params.id, name, relationship, date_of_birth]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating dependent:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/dependents/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM dependents WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting dependent:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Immigration Records
+app.get('/api/employees/:id/immigration', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM immigration_records WHERE employee_id = $1 ORDER BY issued_date DESC', [req.params.id]);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching immigration records:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/employees/:id/immigration', async (req, res) => {
+  try {
+    const { document_type, document_number, issued_by, issued_date, expiry_date } = req.body;
+    const result = await pool.query(
+      'INSERT INTO immigration_records (employee_id, document_type, document_number, issued_by, issued_date, expiry_date) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [req.params.id, document_type, document_number, issued_by, issued_date, expiry_date]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating immigration record:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/immigration/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM immigration_records WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting immigration record:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================================================
+// ADMIN CONFIGURATION API ENDPOINTS
+// ============================================================================
+
+// Locations
+app.get('/api/locations', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM locations ORDER BY name');
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching locations:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/locations', async (req, res) => {
+  try {
+    const { name, country, province, city, address, zip_code, phone, fax, notes } = req.body;
+    const result = await pool.query(
+      'INSERT INTO locations (name, country, province, city, address, zip_code, phone, fax, notes) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
+      [name, country, province, city, address, zip_code, phone, fax, notes]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating location:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/locations/:id', async (req, res) => {
+  try {
+    const { name, country, province, city, address, zip_code, phone, fax, notes } = req.body;
+    const result = await pool.query(
+      'UPDATE locations SET name = $1, country = $2, province = $3, city = $4, address = $5, zip_code = $6, phone = $7, fax = $8, notes = $9, updated_at = CURRENT_TIMESTAMP WHERE id = $10 RETURNING *',
+      [name, country, province, city, address, zip_code, phone, fax, notes, req.params.id]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating location:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/locations/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM locations WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting location:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Pay Grades
+app.get('/api/pay-grades', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM pay_grades ORDER BY name');
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching pay grades:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/pay-grades', async (req, res) => {
+  try {
+    const { name, currency, min_salary, max_salary } = req.body;
+    const result = await pool.query(
+      'INSERT INTO pay_grades (name, currency, min_salary, max_salary) VALUES ($1, $2, $3, $4) RETURNING *',
+      [name, currency, min_salary, max_salary]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating pay grade:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/pay-grades/:id', async (req, res) => {
+  try {
+    const { name, currency, min_salary, max_salary } = req.body;
+    const result = await pool.query(
+      'UPDATE pay_grades SET name = $1, currency = $2, min_salary = $3, max_salary = $4, updated_at = CURRENT_TIMESTAMP WHERE id = $5 RETURNING *',
+      [name, currency, min_salary, max_salary, req.params.id]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating pay grade:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/pay-grades/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM pay_grades WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting pay grade:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Employment Status
+app.get('/api/employment-status', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM employment_status ORDER BY name');
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching employment status:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/employment-status', async (req, res) => {
+  try {
+    const { name } = req.body;
+    const result = await pool.query('INSERT INTO employment_status (name) VALUES ($1) RETURNING *', [name]);
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating employment status:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Job Categories
+app.get('/api/job-categories', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM job_categories ORDER BY name');
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching job categories:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/job-categories', async (req, res) => {
+  try {
+    const { name } = req.body;
+    const result = await pool.query('INSERT INTO job_categories (name) VALUES ($1) RETURNING *', [name]);
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating job category:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Work Shifts
+app.get('/api/work-shifts', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM work_shifts ORDER BY name');
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching work shifts:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/work-shifts', async (req, res) => {
+  try {
+    const { name, hours_per_day, start_time, end_time } = req.body;
+    const result = await pool.query(
+      'INSERT INTO work_shifts (name, hours_per_day, start_time, end_time) VALUES ($1, $2, $3, $4) RETURNING *',
+      [name, hours_per_day, start_time, end_time]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating work shift:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Nationalities
+app.get('/api/nationalities', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM nationalities ORDER BY name');
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching nationalities:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/nationalities', async (req, res) => {
+  try {
+    const { name } = req.body;
+    const result = await pool.query('INSERT INTO nationalities (name) VALUES ($1) RETURNING *', [name]);
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating nationality:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/nationalities/:id', async (req, res) => {
+  try {
+    const { name } = req.body;
+    const result = await pool.query('UPDATE nationalities SET name = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *', [name, req.params.id]);
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating nationality:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/nationalities/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM nationalities WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting nationality:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Users Management
+app.get('/api/users', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT u.*, e.first_name || ' ' || e.last_name as employee_name
+      FROM users u
+      LEFT JOIN employees e ON u.id = e.user_id
+      ORDER BY u.created_at DESC
+    `);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/users', async (req, res) => {
+  try {
+    const { username, email, password, first_name, last_name, role, status } = req.body;
+    const bcrypt = require('bcrypt');
+    const password_hash = await bcrypt.hash(password, 10);
+    const result = await pool.query(
+      'INSERT INTO users (username, email, password_hash, first_name, last_name, role, status) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, username, email, first_name, last_name, role, status, created_at',
+      [username, email, password_hash, first_name, last_name, role || 'user', status || 'active']
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating user:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/users/:id', async (req, res) => {
+  try {
+    const { username, email, first_name, last_name, role, status, password } = req.body;
+    let query, params;
+    if (password) {
+      const bcrypt = require('bcrypt');
+      const password_hash = await bcrypt.hash(password, 10);
+      query = 'UPDATE users SET username = $1, email = $2, first_name = $3, last_name = $4, role = $5, status = $6, password_hash = $7, updated_at = CURRENT_TIMESTAMP WHERE id = $8 RETURNING id, username, email, first_name, last_name, role, status';
+      params = [username, email, first_name, last_name, role, status, password_hash, req.params.id];
+    } else {
+      query = 'UPDATE users SET username = $1, email = $2, first_name = $3, last_name = $4, role = $5, status = $6, updated_at = CURRENT_TIMESTAMP WHERE id = $7 RETURNING id, username, email, first_name, last_name, role, status';
+      params = [username, email, first_name, last_name, role, status, req.params.id];
+    }
+    const result = await pool.query(query, params);
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating user:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/users/:id', async (req, res) => {
+  try {
+    await pool.query('UPDATE users SET status = $1 WHERE id = $2', ['inactive', req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Serve frontend static files (if built)
 // IMPORTANT: This must come AFTER all API routes
 const frontendDistPath = path.join(__dirname, '../../web/dist');

@@ -3,9 +3,10 @@
  * Copyright (C) 2024 Arithwise Inc.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import AdminLayout from './AdminLayout';
 import ProtectedRoute from '../../components/ProtectedRoute';
+import { apiService } from '../../services/api';
 
 const COLORS = {
   primary: '#78176b',
@@ -29,20 +30,38 @@ const TYPOGRAPHY = {
 interface WorkShift {
   id: number;
   name: string;
-  from: string;
-  to: string;
-  hoursPerDay: string;
+  start_time: string;
+  end_time: string;
+  hours_per_day: number | string;
 }
 
 const WorkShifts: React.FC = () => {
-  const [shifts, setShifts] = useState<WorkShift[]>([
-    { id: 1, name: 'General', from: '08:00 AM', to: '05:00 PM', hoursPerDay: '9.00' },
-    { id: 2, name: 'Twilight', from: '02:00 PM', to: '11:00 PM', hoursPerDay: '9.00' },
-  ]);
+  const [shifts, setShifts] = useState<WorkShift[]>([]);
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingItem, setEditingItem] = useState<WorkShift | null>(null);
   const [formData, setFormData] = useState({ name: '', from: '09:00', to: '17:00', hoursPerDay: '8.00' });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchWorkShifts();
+  }, []);
+
+  const fetchWorkShifts = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await apiService.getWorkShifts();
+      setShifts(data || []);
+    } catch (err: any) {
+      console.error('Error fetching work shifts:', err);
+      setError(err.message || 'Failed to fetch work shifts');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
@@ -58,10 +77,16 @@ const WorkShifts: React.FC = () => {
     );
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = async (id: number) => {
     if (window.confirm('Are you sure you want to delete this work shift?')) {
-      setShifts(shifts.filter(s => s.id !== id));
-      setSelectedItems(selectedItems.filter(i => i !== id));
+      try {
+        await apiService.deleteWorkShift(id);
+        setShifts(shifts.filter(s => s.id !== id));
+        setSelectedItems(selectedItems.filter(i => i !== id));
+      } catch (err: any) {
+        console.error('Error deleting work shift:', err);
+        alert(`Failed to delete work shift: ${err.message || 'Unknown error'}`);
+      }
     }
   };
 
@@ -73,14 +98,14 @@ const WorkShifts: React.FC = () => {
 
   const handleEdit = (item: WorkShift) => {
     setEditingItem(item);
-    // Convert time format from "08:00 AM" to "08:00"
-    const from24 = convertTo24Hour(item.from);
-    const to24 = convertTo24Hour(item.to);
+    // API returns times in 24-hour format (HH:MM:SS or HH:MM), convert to HH:MM for input
+    const from24 = item.start_time ? item.start_time.substring(0, 5) : '09:00';
+    const to24 = item.end_time ? item.end_time.substring(0, 5) : '17:00';
     setFormData({ 
       name: item.name, 
       from: from24, 
       to: to24, 
-      hoursPerDay: item.hoursPerDay 
+      hoursPerDay: String(item.hours_per_day || '8.00')
     });
     setShowAddModal(true);
   };
@@ -107,30 +132,37 @@ const WorkShifts: React.FC = () => {
     return `${hour.toString().padStart(2, '0')}:${minutes} ${period}`;
   };
 
-  const handleSave = () => {
-    if (!formData.name.trim()) return;
-    
-    const from12 = convertTo12Hour(formData.from);
-    const to12 = convertTo12Hour(formData.to);
-    
-    if (editingItem) {
-      setShifts(shifts.map(s => 
-        s.id === editingItem.id 
-          ? { ...s, name: formData.name, from: from12, to: to12, hoursPerDay: formData.hoursPerDay }
-          : s
-      ));
-    } else {
-      const newId = Math.max(...shifts.map(s => s.id), 0) + 1;
-      setShifts([...shifts, { 
-        id: newId, 
-        name: formData.name, 
-        from: from12, 
-        to: to12, 
-        hoursPerDay: formData.hoursPerDay 
-      }]);
+  const handleSave = async () => {
+    if (!formData.name.trim()) {
+      alert('Please enter a shift name');
+      return;
     }
-    setShowAddModal(false);
-    setFormData({ name: '', from: '09:00', to: '17:00', hoursPerDay: '8.00' });
+    
+    setSaving(true);
+    try {
+      const payload = {
+        name: formData.name.trim(),
+        start_time: formData.from + ':00', // Add seconds for API
+        end_time: formData.to + ':00',
+        hours_per_day: parseFloat(formData.hoursPerDay) || 8.0
+      };
+
+      if (editingItem) {
+        await apiService.updateWorkShift(editingItem.id, payload);
+      } else {
+        await apiService.createWorkShift(payload);
+      }
+      
+      await fetchWorkShifts();
+      setShowAddModal(false);
+      setFormData({ name: '', from: '09:00', to: '17:00', hoursPerDay: '8.00' });
+      setEditingItem(null);
+    } catch (err: any) {
+      console.error('Error saving work shift:', err);
+      alert(`Failed to save work shift: ${err.message || 'Unknown error'}`);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -188,99 +220,142 @@ const WorkShifts: React.FC = () => {
             ({shifts.length}) Records Found
           </div>
 
-          {/* Table */}
-          <div style={{
-            backgroundColor: COLORS.white,
-            borderRadius: '8px',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-            overflow: 'hidden',
-          }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ backgroundColor: COLORS.lightBgAlt, borderBottom: `1px solid ${COLORS.border}` }}>
-                  <th style={{ padding: '12px 16px', textAlign: 'left', width: '50px' }}>
-                    <input
-                      type="checkbox"
-                      checked={selectedItems.length === shifts.length && shifts.length > 0}
-                      onChange={handleSelectAll}
-                    />
-                  </th>
-                  <th style={{ padding: '12px 16px', textAlign: 'left', fontFamily: TYPOGRAPHY.fontFamily, fontSize: TYPOGRAPHY.textImportant.fontSize, fontWeight: 500, color: COLORS.text }}>
-                    Name
-                  </th>
-                  <th style={{ padding: '12px 16px', textAlign: 'left', fontFamily: TYPOGRAPHY.fontFamily, fontSize: TYPOGRAPHY.textImportant.fontSize, fontWeight: 500, color: COLORS.text }}>
-                    From
-                  </th>
-                  <th style={{ padding: '12px 16px', textAlign: 'left', fontFamily: TYPOGRAPHY.fontFamily, fontSize: TYPOGRAPHY.textImportant.fontSize, fontWeight: 500, color: COLORS.text }}>
-                    To
-                  </th>
-                  <th style={{ padding: '12px 16px', textAlign: 'left', fontFamily: TYPOGRAPHY.fontFamily, fontSize: TYPOGRAPHY.textImportant.fontSize, fontWeight: 500, color: COLORS.text }}>
-                    Hours Per Day
-                  </th>
-                  <th style={{ padding: '12px 16px', textAlign: 'center', fontFamily: TYPOGRAPHY.fontFamily, fontSize: TYPOGRAPHY.textImportant.fontSize, fontWeight: 500, color: COLORS.text }}>
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {shifts.map(shift => (
-                  <tr key={shift.id} style={{ borderBottom: `1px solid ${COLORS.border}`, backgroundColor: COLORS.white }}>
-                    <td style={{ padding: '16px' }}>
+          {/* Error Message */}
+          {error && (
+            <div style={{
+              backgroundColor: '#fee',
+              color: COLORS.red,
+              padding: '12px',
+              borderRadius: '6px',
+              marginBottom: '16px',
+              fontFamily: TYPOGRAPHY.fontFamily,
+            }}>
+              {error}
+            </div>
+          )}
+
+          {/* Loading State */}
+          {loading ? (
+            <div style={{
+              backgroundColor: COLORS.white,
+              borderRadius: '8px',
+              padding: '40px',
+              textAlign: 'center',
+              color: COLORS.textLight,
+              fontFamily: TYPOGRAPHY.fontFamily,
+            }}>
+              Loading work shifts...
+            </div>
+          ) : shifts.length === 0 ? (
+            <div style={{
+              backgroundColor: COLORS.white,
+              borderRadius: '8px',
+              padding: '40px',
+              textAlign: 'center',
+              color: COLORS.textLight,
+              fontFamily: TYPOGRAPHY.fontFamily,
+            }}>
+              No work shifts found. Click "+ Add" to create one.
+            </div>
+          ) : (
+            /* Table */
+            <div style={{
+              backgroundColor: COLORS.white,
+              borderRadius: '8px',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+              overflow: 'hidden',
+            }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ backgroundColor: COLORS.lightBgAlt, borderBottom: `1px solid ${COLORS.border}` }}>
+                    <th style={{ padding: '12px 16px', textAlign: 'left', width: '50px' }}>
                       <input
                         type="checkbox"
-                        checked={selectedItems.includes(shift.id)}
-                        onChange={() => handleSelectItem(shift.id)}
+                        checked={selectedItems.length === shifts.length && shifts.length > 0}
+                        onChange={handleSelectAll}
                       />
-                    </td>
-                    <td style={{ padding: '16px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: TYPOGRAPHY.textImportant.fontSize, color: COLORS.text }}>
-                      {shift.name}
-                    </td>
-                    <td style={{ padding: '16px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: TYPOGRAPHY.textImportant.fontSize, color: COLORS.textLight }}>
-                      {shift.from}
-                    </td>
-                    <td style={{ padding: '16px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: TYPOGRAPHY.textImportant.fontSize, color: COLORS.textLight }}>
-                      {shift.to}
-                    </td>
-                    <td style={{ padding: '16px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: TYPOGRAPHY.textImportant.fontSize, color: COLORS.primary }}>
-                      {shift.hoursPerDay}
-                    </td>
-                    <td style={{ padding: '16px', textAlign: 'center' }}>
-                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                        <button
-                          onClick={() => handleDelete(shift.id)}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            cursor: 'pointer',
-                            color: COLORS.textLight,
-                            fontSize: '18px',
-                            padding: '4px 8px',
-                          }}
-                          title="Delete"
-                        >
-                          🗑️
-                        </button>
-                        <button
-                          onClick={() => handleEdit(shift)}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            cursor: 'pointer',
-                            color: COLORS.textLight,
-                            fontSize: '18px',
-                            padding: '4px 8px',
-                          }}
-                          title="Edit"
-                        >
-                          ✏️
-                        </button>
-                      </div>
-                    </td>
+                    </th>
+                    <th style={{ padding: '12px 16px', textAlign: 'left', fontFamily: TYPOGRAPHY.fontFamily, fontSize: TYPOGRAPHY.textImportant.fontSize, fontWeight: 500, color: COLORS.text }}>
+                      Name
+                    </th>
+                    <th style={{ padding: '12px 16px', textAlign: 'left', fontFamily: TYPOGRAPHY.fontFamily, fontSize: TYPOGRAPHY.textImportant.fontSize, fontWeight: 500, color: COLORS.text }}>
+                      From
+                    </th>
+                    <th style={{ padding: '12px 16px', textAlign: 'left', fontFamily: TYPOGRAPHY.fontFamily, fontSize: TYPOGRAPHY.textImportant.fontSize, fontWeight: 500, color: COLORS.text }}>
+                      To
+                    </th>
+                    <th style={{ padding: '12px 16px', textAlign: 'left', fontFamily: TYPOGRAPHY.fontFamily, fontSize: TYPOGRAPHY.textImportant.fontSize, fontWeight: 500, color: COLORS.text }}>
+                      Hours Per Day
+                    </th>
+                    <th style={{ padding: '12px 16px', textAlign: 'center', fontFamily: TYPOGRAPHY.fontFamily, fontSize: TYPOGRAPHY.textImportant.fontSize, fontWeight: 500, color: COLORS.text }}>
+                      Actions
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {shifts.map(shift => {
+                    const from12 = shift.start_time ? convertTo12Hour(shift.start_time.substring(0, 5)) : '';
+                    const to12 = shift.end_time ? convertTo12Hour(shift.end_time.substring(0, 5)) : '';
+                    return (
+                      <tr key={shift.id} style={{ borderBottom: `1px solid ${COLORS.border}`, backgroundColor: COLORS.white }}>
+                        <td style={{ padding: '16px' }}>
+                          <input
+                            type="checkbox"
+                            checked={selectedItems.includes(shift.id)}
+                            onChange={() => handleSelectItem(shift.id)}
+                          />
+                        </td>
+                        <td style={{ padding: '16px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: TYPOGRAPHY.textImportant.fontSize, color: COLORS.text }}>
+                          {shift.name}
+                        </td>
+                        <td style={{ padding: '16px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: TYPOGRAPHY.textImportant.fontSize, color: COLORS.textLight }}>
+                          {from12}
+                        </td>
+                        <td style={{ padding: '16px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: TYPOGRAPHY.textImportant.fontSize, color: COLORS.textLight }}>
+                          {to12}
+                        </td>
+                        <td style={{ padding: '16px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: TYPOGRAPHY.textImportant.fontSize, color: COLORS.primary }}>
+                          {shift.hours_per_day}
+                        </td>
+                        <td style={{ padding: '16px', textAlign: 'center' }}>
+                          <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                            <button
+                              onClick={() => handleDelete(shift.id)}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                cursor: 'pointer',
+                                color: COLORS.textLight,
+                                fontSize: '18px',
+                                padding: '4px 8px',
+                              }}
+                              title="Delete"
+                            >
+                              🗑️
+                            </button>
+                            <button
+                              onClick={() => handleEdit(shift)}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                cursor: 'pointer',
+                                color: COLORS.textLight,
+                                fontSize: '18px',
+                                padding: '4px 8px',
+                              }}
+                              title="Edit"
+                            >
+                              ✏️
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           {/* Add/Edit Modal */}
           {showAddModal && (
@@ -405,18 +480,19 @@ const WorkShifts: React.FC = () => {
                   </button>
                   <button
                     onClick={handleSave}
+                    disabled={saving}
                     style={{
                       padding: '10px 20px',
-                      backgroundColor: COLORS.primary,
+                      backgroundColor: saving ? COLORS.textLight : COLORS.primary,
                       color: COLORS.white,
                       border: 'none',
                       borderRadius: '4px',
-                      cursor: 'pointer',
+                      cursor: saving ? 'not-allowed' : 'pointer',
                       fontFamily: TYPOGRAPHY.fontFamily,
                       fontSize: TYPOGRAPHY.textImportant.fontSize,
                     }}
                   >
-                    Save
+                    {saving ? 'Saving...' : 'Save'}
                   </button>
                 </div>
               </div>

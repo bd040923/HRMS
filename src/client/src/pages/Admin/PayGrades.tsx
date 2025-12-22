@@ -3,9 +3,10 @@
  * Copyright (C) 2024 Arithwise Inc.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import AdminLayout from './AdminLayout';
 import ProtectedRoute from '../../components/ProtectedRoute';
+import { apiService } from '../../services/api';
 
 const COLORS = {
   primary: '#78176b',
@@ -30,20 +31,37 @@ interface PayGrade {
   id: number;
   name: string;
   currency: string;
+  min_salary?: number | null;
+  max_salary?: number | null;
 }
 
 const PayGrades: React.FC = () => {
-  const [payGrades, setPayGrades] = useState<PayGrade[]>([
-    { id: 1, name: 'Grade 1', currency: 'United States Dollar' },
-    { id: 2, name: 'Grade 2', currency: 'United States Dollar' },
-    { id: 3, name: 'Grade 3', currency: 'United States Dollar' },
-    { id: 4, name: 'Grade 4', currency: 'United States Dollar' },
-    { id: 5, name: 'Grade 5', currency: 'United States Dollar' },
-  ]);
+  const [payGrades, setPayGrades] = useState<PayGrade[]>([]);
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingItem, setEditingItem] = useState<PayGrade | null>(null);
   const [formData, setFormData] = useState({ name: '', currency: 'United States Dollar' });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchPayGrades();
+  }, []);
+
+  const fetchPayGrades = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await apiService.getPayGrades();
+      setPayGrades(data || []);
+    } catch (err: any) {
+      console.error('Error fetching pay grades:', err);
+      setError(err.message || 'Failed to fetch pay grades');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
@@ -59,10 +77,16 @@ const PayGrades: React.FC = () => {
     );
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = async (id: number) => {
     if (window.confirm('Are you sure you want to delete this pay grade?')) {
-      setPayGrades(payGrades.filter(g => g.id !== id));
-      setSelectedItems(selectedItems.filter(i => i !== id));
+      try {
+        await apiService.deletePayGrade(id);
+        setPayGrades(payGrades.filter(g => g.id !== id));
+        setSelectedItems(selectedItems.filter(i => i !== id));
+      } catch (err: any) {
+        console.error('Error deleting pay grade:', err);
+        alert(`Failed to delete pay grade: ${err.message || 'Unknown error'}`);
+      }
     }
   };
 
@@ -74,25 +98,41 @@ const PayGrades: React.FC = () => {
 
   const handleEdit = (item: PayGrade) => {
     setEditingItem(item);
-    setFormData({ name: item.name, currency: item.currency });
+    setFormData({ name: item.name, currency: item.currency || 'United States Dollar' });
     setShowAddModal(true);
   };
 
-  const handleSave = () => {
-    if (!formData.name.trim()) return;
-    
-    if (editingItem) {
-      setPayGrades(payGrades.map(g => 
-        g.id === editingItem.id 
-          ? { ...g, name: formData.name, currency: formData.currency }
-          : g
-      ));
-    } else {
-      const newId = Math.max(...payGrades.map(g => g.id), 0) + 1;
-      setPayGrades([...payGrades, { id: newId, name: formData.name, currency: formData.currency }]);
+  const handleSave = async () => {
+    if (!formData.name.trim()) {
+      alert('Please enter a pay grade name');
+      return;
     }
-    setShowAddModal(false);
-    setFormData({ name: '', currency: 'United States Dollar' });
+    
+    setSaving(true);
+    try {
+      const payload = {
+        name: formData.name.trim(),
+        currency: formData.currency,
+        min_salary: null,
+        max_salary: null
+      };
+
+      if (editingItem) {
+        await apiService.updatePayGrade(editingItem.id, payload);
+      } else {
+        await apiService.createPayGrade(payload);
+      }
+      
+      await fetchPayGrades();
+      setShowAddModal(false);
+      setFormData({ name: '', currency: 'United States Dollar' });
+      setEditingItem(null);
+    } catch (err: any) {
+      console.error('Error saving pay grade:', err);
+      alert(`Failed to save pay grade: ${err.message || 'Unknown error'}`);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -150,87 +190,126 @@ const PayGrades: React.FC = () => {
             ({payGrades.length}) Records Found
           </div>
 
-          {/* Table */}
-          <div style={{
-            backgroundColor: COLORS.white,
-            borderRadius: '8px',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-            overflow: 'hidden',
-          }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ backgroundColor: COLORS.lightBgAlt, borderBottom: `1px solid ${COLORS.border}` }}>
-                  <th style={{ padding: '12px 16px', textAlign: 'left', width: '50px' }}>
-                    <input
-                      type="checkbox"
-                      checked={selectedItems.length === payGrades.length && payGrades.length > 0}
-                      onChange={handleSelectAll}
-                    />
-                  </th>
-                  <th style={{ padding: '12px 16px', textAlign: 'left', fontFamily: TYPOGRAPHY.fontFamily, fontSize: TYPOGRAPHY.textImportant.fontSize, fontWeight: 500, color: COLORS.text }}>
-                    Name
-                  </th>
-                  <th style={{ padding: '12px 16px', textAlign: 'left', fontFamily: TYPOGRAPHY.fontFamily, fontSize: TYPOGRAPHY.textImportant.fontSize, fontWeight: 500, color: COLORS.text }}>
-                    Currency
-                  </th>
-                  <th style={{ padding: '12px 16px', textAlign: 'center', fontFamily: TYPOGRAPHY.fontFamily, fontSize: TYPOGRAPHY.textImportant.fontSize, fontWeight: 500, color: COLORS.text }}>
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {payGrades.map(grade => (
-                  <tr key={grade.id} style={{ borderBottom: `1px solid ${COLORS.border}`, backgroundColor: COLORS.white }}>
-                    <td style={{ padding: '16px' }}>
+          {/* Error Message */}
+          {error && (
+            <div style={{
+              backgroundColor: '#fee',
+              color: COLORS.red,
+              padding: '12px',
+              borderRadius: '6px',
+              marginBottom: '16px',
+              fontFamily: TYPOGRAPHY.fontFamily,
+            }}>
+              {error}
+            </div>
+          )}
+
+          {/* Loading State */}
+          {loading ? (
+            <div style={{
+              backgroundColor: COLORS.white,
+              borderRadius: '8px',
+              padding: '40px',
+              textAlign: 'center',
+              color: COLORS.textLight,
+              fontFamily: TYPOGRAPHY.fontFamily,
+            }}>
+              Loading pay grades...
+            </div>
+          ) : payGrades.length === 0 ? (
+            <div style={{
+              backgroundColor: COLORS.white,
+              borderRadius: '8px',
+              padding: '40px',
+              textAlign: 'center',
+              color: COLORS.textLight,
+              fontFamily: TYPOGRAPHY.fontFamily,
+            }}>
+              No pay grades found. Click "+ Add" to create one.
+            </div>
+          ) : (
+            /* Table */
+            <div style={{
+              backgroundColor: COLORS.white,
+              borderRadius: '8px',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+              overflow: 'hidden',
+            }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ backgroundColor: COLORS.lightBgAlt, borderBottom: `1px solid ${COLORS.border}` }}>
+                    <th style={{ padding: '12px 16px', textAlign: 'left', width: '50px' }}>
                       <input
                         type="checkbox"
-                        checked={selectedItems.includes(grade.id)}
-                        onChange={() => handleSelectItem(grade.id)}
+                        checked={selectedItems.length === payGrades.length && payGrades.length > 0}
+                        onChange={handleSelectAll}
                       />
-                    </td>
-                    <td style={{ padding: '16px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: TYPOGRAPHY.textImportant.fontSize, color: COLORS.text }}>
-                      {grade.name}
-                    </td>
-                    <td style={{ padding: '16px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: TYPOGRAPHY.textImportant.fontSize, color: COLORS.textLight }}>
-                      {grade.currency}
-                    </td>
-                    <td style={{ padding: '16px', textAlign: 'center' }}>
-                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                        <button
-                          onClick={() => handleDelete(grade.id)}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            cursor: 'pointer',
-                            color: COLORS.textLight,
-                            fontSize: '18px',
-                            padding: '4px 8px',
-                          }}
-                          title="Delete"
-                        >
-                          🗑️
-                        </button>
-                        <button
-                          onClick={() => handleEdit(grade)}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            cursor: 'pointer',
-                            color: COLORS.textLight,
-                            fontSize: '18px',
-                            padding: '4px 8px',
-                          }}
-                          title="Edit"
-                        >
-                          ✏️
-                        </button>
-                      </div>
-                    </td>
+                    </th>
+                    <th style={{ padding: '12px 16px', textAlign: 'left', fontFamily: TYPOGRAPHY.fontFamily, fontSize: TYPOGRAPHY.textImportant.fontSize, fontWeight: 500, color: COLORS.text }}>
+                      Name
+                    </th>
+                    <th style={{ padding: '12px 16px', textAlign: 'left', fontFamily: TYPOGRAPHY.fontFamily, fontSize: TYPOGRAPHY.textImportant.fontSize, fontWeight: 500, color: COLORS.text }}>
+                      Currency
+                    </th>
+                    <th style={{ padding: '12px 16px', textAlign: 'center', fontFamily: TYPOGRAPHY.fontFamily, fontSize: TYPOGRAPHY.textImportant.fontSize, fontWeight: 500, color: COLORS.text }}>
+                      Actions
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {payGrades.map(grade => (
+                    <tr key={grade.id} style={{ borderBottom: `1px solid ${COLORS.border}`, backgroundColor: COLORS.white }}>
+                      <td style={{ padding: '16px' }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedItems.includes(grade.id)}
+                          onChange={() => handleSelectItem(grade.id)}
+                        />
+                      </td>
+                      <td style={{ padding: '16px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: TYPOGRAPHY.textImportant.fontSize, color: COLORS.text }}>
+                        {grade.name}
+                      </td>
+                      <td style={{ padding: '16px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: TYPOGRAPHY.textImportant.fontSize, color: COLORS.textLight }}>
+                        {grade.currency || 'United States Dollar'}
+                      </td>
+                      <td style={{ padding: '16px', textAlign: 'center' }}>
+                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                          <button
+                            onClick={() => handleDelete(grade.id)}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              cursor: 'pointer',
+                              color: COLORS.textLight,
+                              fontSize: '18px',
+                              padding: '4px 8px',
+                            }}
+                            title="Delete"
+                          >
+                            🗑️
+                          </button>
+                          <button
+                            onClick={() => handleEdit(grade)}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              cursor: 'pointer',
+                              color: COLORS.textLight,
+                              fontSize: '18px',
+                              padding: '4px 8px',
+                            }}
+                            title="Edit"
+                          >
+                            ✏️
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           {/* Add/Edit Modal */}
           {showAddModal && (
@@ -320,18 +399,19 @@ const PayGrades: React.FC = () => {
                   </button>
                   <button
                     onClick={handleSave}
+                    disabled={saving}
                     style={{
                       padding: '10px 20px',
-                      backgroundColor: COLORS.primary,
+                      backgroundColor: saving ? COLORS.textLight : COLORS.primary,
                       color: COLORS.white,
                       border: 'none',
                       borderRadius: '4px',
-                      cursor: 'pointer',
+                      cursor: saving ? 'not-allowed' : 'pointer',
                       fontFamily: TYPOGRAPHY.fontFamily,
                       fontSize: TYPOGRAPHY.textImportant.fontSize,
                     }}
                   >
-                    Save
+                    {saving ? 'Saving...' : 'Save'}
                   </button>
                 </div>
               </div>

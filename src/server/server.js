@@ -1728,7 +1728,7 @@ app.post('/api/v1/auth/login', async (req, res) => {
 
     // Users table exists - query database
     const result = await pool.query(
-      'SELECT id, username, email, password_hash, first_name, last_name, role, status FROM users WHERE username = $1 OR email = $1',
+      'SELECT id, username, email, password_hash, first_name, last_name, role, status FROM hrms_data.users WHERE username = $1 OR email = $1',
       [username]
     );
 
@@ -1749,12 +1749,26 @@ app.post('/api/v1/auth/login', async (req, res) => {
       });
     }
 
-    // Simple password check (in production, use bcrypt)
-    // For now, we'll accept plain text passwords for development
-    // TODO: Implement proper password hashing with bcrypt
-    const passwordMatch = password === user.password_hash || 
-                          password === 'Admin@123' && user.role === 'admin' ||
-                          password === 'User@123' && user.role === 'user';
+    // Password verification - support both bcrypt hashed and plain text (for development)
+    let passwordMatch = false;
+    
+    // Check if password_hash looks like a bcrypt hash (starts with $2a$, $2b$, or $2y$)
+    if (user.password_hash && (user.password_hash.startsWith('$2a$') || user.password_hash.startsWith('$2b$') || user.password_hash.startsWith('$2y$'))) {
+      // Use bcrypt to verify hashed password
+      try {
+        const bcrypt = require('bcrypt');
+        passwordMatch = await bcrypt.compare(password, user.password_hash);
+      } catch (err) {
+        console.error('Bcrypt comparison error:', err);
+        // Fallback to plain text comparison if bcrypt fails
+        passwordMatch = password === user.password_hash;
+      }
+    } else {
+      // Plain text password comparison (for development)
+      passwordMatch = password === user.password_hash || 
+                      password === 'Admin@123' && user.role === 'admin' ||
+                      password === 'User@123' && user.role === 'user';
+    }
 
     if (!passwordMatch) {
       return res.status(401).json({ 
@@ -1765,7 +1779,7 @@ app.post('/api/v1/auth/login', async (req, res) => {
 
     // Update last login
     await pool.query(
-      'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1',
+      'UPDATE hrms_data.users SET last_login = CURRENT_TIMESTAMP WHERE id = $1',
       [user.id]
     );
 
@@ -1775,7 +1789,7 @@ app.post('/api/v1/auth/login', async (req, res) => {
     // Store session in database (if user_sessions table exists)
     try {
       await pool.query(
-        'INSERT INTO user_sessions (user_id, session_token, expires_at, ip_address) VALUES ($1, $2, $3, $4)',
+        'INSERT INTO hrms_data.user_sessions (user_id, session_token, expires_at, ip_address) VALUES ($1, $2, $3, $4)',
         [user.id, sessionToken, new Date(Date.now() + 24 * 60 * 60 * 1000), req.ip]
       );
     } catch (err) {
@@ -1833,7 +1847,7 @@ app.get('/api/v1/auth/me', async (req, res) => {
     if (sessionCheck.rows[0].exists) {
       // Verify session token
       const sessionResult = await pool.query(
-        'SELECT u.id, u.username, u.email, u.first_name, u.last_name, u.role, u.status FROM user_sessions s JOIN users u ON s.user_id = u.id WHERE s.session_token = $1 AND s.expires_at > CURRENT_TIMESTAMP',
+        'SELECT u.id, u.username, u.email, u.first_name, u.last_name, u.role, u.status FROM hrms_data.user_sessions s JOIN hrms_data.users u ON s.user_id = u.id WHERE s.session_token = $1 AND s.expires_at > CURRENT_TIMESTAMP',
         [token]
       );
 
@@ -2023,10 +2037,23 @@ app.get('/api/health', async (req, res) => {
 // LEAVE MANAGEMENT API ENDPOINTS
 // ============================================================================
 
-// Leave Types
+// Leave Types - Return CL, EL, and Unpaid Leave (active status)
 app.get('/api/leave-types', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM leave_types WHERE status != $1 ORDER BY name', ['deleted']);
+    // Return Casual Leave, Earned Leave, and Unpaid Leave (active status)
+    // CL includes Sick Leave (no separate SL)
+    const result = await pool.query(`
+      SELECT * FROM hrms_data.leave_types 
+      WHERE status = 'active' 
+      ORDER BY 
+        CASE 
+          WHEN LOWER(name) LIKE '%casual%' THEN 1
+          WHEN LOWER(name) LIKE '%earned%' OR LOWER(name) LIKE '%privilege%' THEN 2
+          WHEN LOWER(name) LIKE '%unpaid%' OR LOWER(name) LIKE '%lwp%' THEN 3
+          ELSE 4
+        END,
+        name
+    `);
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching leave types:', error);
@@ -2036,10 +2063,33 @@ app.get('/api/leave-types', async (req, res) => {
 
 app.post('/api/leave-types', async (req, res) => {
   try {
-    const { name, description, entitlement_days } = req.body;
+    const { name, description, entitlement_days, is_paid } = req.body;
+    
+    // Validate: Allow CL, EL, and Unpaid Leave
+    if (name && !name.toLowerCase().includes('casual') && !name.toLowerCase().includes('earned') && !name.toLowerCase().includes('privilege') && !name.toLowerCase().includes('unpaid') && !name.toLowerCase().includes('lwp')) {
+      return res.status(400).json({ error: 'Only Casual Leave (CL), Earned Leave (EL), and Unpaid Leave are allowed. Sick Leave is included in Casual Leave.' });
+    }
+    
+    // Default is_paid based on leave type name
+    let defaultIsPaid = true;
+    if (name && (name.toLowerCase().includes('unpaid') || name.toLowerCase().includes('lwp'))) {
+      defaultIsPaid = false;
+    }
+    
+    // Use INSERT ... ON CONFLICT to handle duplicate names
+    // If name exists (even if deleted), update it instead of creating new
     const result = await pool.query(
-      'INSERT INTO leave_types (name, description, entitlement_days) VALUES ($1, $2, $3) RETURNING *',
-      [name, description, entitlement_days || 0]
+      `INSERT INTO hrms_data.leave_types (name, description, entitlement_days, is_paid, status) 
+       VALUES ($1, $2, $3, $4, 'active') 
+       ON CONFLICT (name) 
+       DO UPDATE SET 
+         description = EXCLUDED.description,
+         entitlement_days = EXCLUDED.entitlement_days,
+         is_paid = EXCLUDED.is_paid,
+         status = 'active',
+         updated_at = CURRENT_TIMESTAMP
+       RETURNING *`,
+      [name, description, entitlement_days || 0, is_paid !== undefined ? is_paid : defaultIsPaid]
     );
     res.status(201).json(result.rows[0]);
   } catch (error) {
@@ -2050,11 +2100,33 @@ app.post('/api/leave-types', async (req, res) => {
 
 app.put('/api/leave-types/:id', async (req, res) => {
   try {
-    const { name, description, entitlement_days, status } = req.body;
+    const { name, description, entitlement_days, status, is_paid } = req.body;
+    
+    // Validate: Allow CL, EL, and Unpaid Leave names
+    if (name && !name.toLowerCase().includes('casual') && !name.toLowerCase().includes('earned') && !name.toLowerCase().includes('privilege') && !name.toLowerCase().includes('unpaid') && !name.toLowerCase().includes('lwp')) {
+      return res.status(400).json({ error: 'Only Casual Leave (CL), Earned Leave (EL), and Unpaid Leave are allowed.' });
+    }
+    
+    // Check if name change would cause duplicate
+    if (name) {
+      const checkResult = await pool.query(
+        'SELECT id FROM hrms_data.leave_types WHERE name = $1 AND id != $2',
+        [name, req.params.id]
+      );
+      if (checkResult.rows.length > 0) {
+        return res.status(400).json({ error: 'A leave type with this name already exists.' });
+      }
+    }
+    
     const result = await pool.query(
-      'UPDATE leave_types SET name = $1, description = $2, entitlement_days = $3, status = $4, updated_at = CURRENT_TIMESTAMP WHERE id = $5 RETURNING *',
-      [name, description, entitlement_days, status, req.params.id]
+      'UPDATE hrms_data.leave_types SET name = $1, description = $2, entitlement_days = $3, status = $4, is_paid = COALESCE($5, is_paid), updated_at = CURRENT_TIMESTAMP WHERE id = $6 RETURNING *',
+      [name, description, entitlement_days, status, is_paid, req.params.id]
     );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Leave type not found' });
+    }
+    
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Error updating leave type:', error);
@@ -2064,7 +2136,7 @@ app.put('/api/leave-types/:id', async (req, res) => {
 
 app.delete('/api/leave-types/:id', async (req, res) => {
   try {
-    await pool.query('UPDATE leave_types SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', ['deleted', req.params.id]);
+    await pool.query('UPDATE hrms_data.leave_types SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', ['deleted', req.params.id]);
     res.json({ success: true });
   } catch (error) {
     console.error('Error deleting leave type:', error);
@@ -2075,30 +2147,79 @@ app.delete('/api/leave-types/:id', async (req, res) => {
 // Leave Requests
 app.get('/api/leave-requests', async (req, res) => {
   try {
-    const { employee_id, status } = req.query;
+    const { employee_id, status, user_id, month } = req.query;
     let query = `
-      SELECT lr.*, e.first_name || ' ' || e.last_name as employee_name, 
-             lt.name as leave_type_name
-      FROM leave_requests lr
-      JOIN employees e ON lr.employee_id = e.id
-      JOIN leave_types lt ON lr.leave_type_id = lt.id
+      SELECT lr.*, 
+             e.first_name || ' ' || e.last_name as employee_name,
+             e.date_of_joining,
+             lt.name as leave_type_name,
+             COALESCE(lt.is_paid, true) as is_paid,
+             DATE_TRUNC('month', lr.from_date)::DATE as leave_month
+      FROM hrms_data.leave_requests lr
+      JOIN hrms_data.employees e ON lr.employee_id = e.id
+      JOIN hrms_data.leave_types lt ON lr.leave_type_id = lt.id
       WHERE 1=1
     `;
     const params = [];
     let paramCount = 1;
     
-    if (employee_id) {
+    // If user_id is provided, get employee_id from employees table
+    if (user_id && !employee_id) {
+      const empResult = await pool.query(
+        'SELECT id FROM hrms_data.employees WHERE user_id = $1 LIMIT 1',
+        [user_id]
+      );
+      if (empResult.rows.length > 0) {
+        query += ` AND lr.employee_id = $${paramCount++}`;
+        params.push(empResult.rows[0].id);
+      } else {
+        // User has no employee record, return empty
+        return res.json([]);
+      }
+    } else if (employee_id) {
       query += ` AND lr.employee_id = $${paramCount++}`;
       params.push(employee_id);
     }
+    
     if (status) {
       query += ` AND lr.status = $${paramCount++}`;
       params.push(status);
     }
+    
+    if (month) {
+      query += ` AND DATE_TRUNC('month', lr.from_date) = $${paramCount++}`;
+      params.push(month);
+    }
+    
     query += ' ORDER BY lr.date_applied DESC';
     
     const result = await pool.query(query, params);
-    res.json(result.rows);
+    
+    // Add payable days calculation for each leave request
+    const leaveRequestsWithPayroll = await Promise.all(result.rows.map(async (lr) => {
+      try {
+        const payrollResult = await pool.query(
+          'SELECT * FROM hrms_data.calculate_payable_days($1, $2)',
+          [lr.leave_month || lr.from_date, lr.employee_id]
+        );
+        if (payrollResult.rows.length > 0) {
+          return {
+            ...lr,
+            total_days: payrollResult.rows[0].total_days,
+            off_days: payrollResult.rows[0].off_days,
+            holidays: payrollResult.rows[0].holidays,
+            working_days: payrollResult.rows[0].working_days,
+            unpaid_leave_days: parseFloat(payrollResult.rows[0].unpaid_leave_days || 0),
+            payable_days: parseFloat(payrollResult.rows[0].payable_days || 0)
+          };
+        }
+      } catch (err) {
+        console.error('Error calculating payable days:', err);
+      }
+      return lr;
+    }));
+    
+    res.json(leaveRequestsWithPayroll);
   } catch (error) {
     console.error('Error fetching leave requests:', error);
     res.status(500).json({ error: error.message });
@@ -2107,13 +2228,246 @@ app.get('/api/leave-requests', async (req, res) => {
 
 app.post('/api/leave-requests', async (req, res) => {
   try {
-    const { employee_id, leave_type_id, from_date, to_date, number_of_days, comments } = req.body;
-    const result = await pool.query(
-      `INSERT INTO leave_requests (employee_id, leave_type_id, from_date, to_date, number_of_days, comments, applied_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $1) RETURNING *`,
-      [employee_id, leave_type_id, from_date, to_date, number_of_days, comments]
-    );
-    res.status(201).json(result.rows[0]);
+    let { employee_id, user_id, leave_type_id, from_date, to_date, number_of_days, comments } = req.body;
+    
+    console.log('Leave request received:', { employee_id, user_id, leave_type_id, from_date, to_date, number_of_days });
+    
+    // If user_id is provided but employee_id is not, get employee_id from employees table
+    if (user_id && !employee_id) {
+      try {
+        // First, check if employees table has user_id column
+        const columnCheck = await pool.query(`
+          SELECT column_name 
+          FROM information_schema.columns 
+          WHERE table_schema = 'hrms_data' 
+          AND table_name = 'employees' 
+          AND column_name = 'user_id'
+        `);
+        
+        if (columnCheck.rows.length > 0) {
+          // Table has user_id column, query by it
+          const empResult = await pool.query(
+            'SELECT id FROM hrms_data.employees WHERE user_id = $1 LIMIT 1',
+            [user_id]
+          );
+          
+          if (empResult.rows.length > 0) {
+            employee_id = empResult.rows[0].id;
+            console.log('Found employee_id:', employee_id, 'for user_id:', user_id);
+          } else {
+            // If user has no employee record, check if employee exists by email first
+            console.log('No employee record found for user_id:', user_id, '- Checking by email...');
+            
+            // Get user details
+            const userResult = await pool.query(
+              'SELECT first_name, last_name, email FROM hrms_data.users WHERE id = $1',
+              [user_id]
+            );
+            
+            if (userResult.rows.length > 0) {
+              const user = userResult.rows[0];
+              
+              // Check if employee exists by email
+              if (user.email) {
+                const empByEmail = await pool.query(
+                  'SELECT id FROM hrms_data.employees WHERE email = $1 LIMIT 1',
+                  [user.email]
+                );
+                
+                if (empByEmail.rows.length > 0) {
+                  // Employee exists by email, update user_id
+                  employee_id = empByEmail.rows[0].id;
+                  await pool.query(
+                    'UPDATE hrms_data.employees SET user_id = $1 WHERE id = $2',
+                    [user_id, employee_id]
+                  );
+                  console.log('Found employee by email, updated user_id. employee_id:', employee_id);
+                }
+              }
+              
+              // If still no employee_id, create new one
+              if (!employee_id) {
+                console.log('Creating new employee record...');
+                // Check employees table structure
+                const empColumns = await pool.query(`
+                  SELECT column_name, data_type 
+                  FROM information_schema.columns 
+                  WHERE table_schema = 'hrms_data' 
+                  AND table_name = 'employees'
+                  ORDER BY ordinal_position
+                `);
+                
+                const hasEmployeeId = empColumns.rows.some(col => col.column_name === 'employee_id');
+                const hasStatus = empColumns.rows.some(col => col.column_name === 'status');
+                
+                // Build INSERT query - skip email if it would cause duplicate
+                let insertCols = ['user_id', 'first_name', 'last_name'];
+                let insertVals = [user_id, user.first_name || 'User', user.last_name || ''];
+                let placeholders = ['$1', '$2', '$3'];
+                let paramCount = 4;
+                
+                if (hasEmployeeId) {
+                  insertCols.push('employee_id');
+                  insertVals.push(`EMP${user_id}`);
+                  placeholders.push(`$${paramCount++}`);
+                }
+                
+                // Only add email if it doesn't already exist
+                if (user.email) {
+                  const emailExists = await pool.query(
+                    'SELECT id FROM hrms_data.employees WHERE email = $1',
+                    [user.email]
+                  );
+                  if (emailExists.rows.length === 0) {
+                    insertCols.push('email');
+                    insertVals.push(user.email);
+                    placeholders.push(`$${paramCount++}`);
+                  }
+                }
+                
+                if (hasStatus) {
+                  insertCols.push('status');
+                  insertVals.push('active');
+                  placeholders.push(`$${paramCount++}`);
+                }
+                
+                const finalCols = insertCols.filter(c => c !== 'created_at');
+                const finalVals = insertVals.filter((v, i) => insertCols[i] !== 'created_at');
+                const finalPlaceholders = finalCols.map((_, i) => `$${i + 1}`);
+                
+                const insertQuery = `
+                  INSERT INTO hrms_data.employees (${finalCols.join(', ')})
+                  VALUES (${finalPlaceholders.join(', ')})
+                  RETURNING id
+                `;
+                
+                console.log('Creating employee with query:', insertQuery);
+                console.log('Values:', finalVals);
+                
+                const newEmpResult = await pool.query(insertQuery, finalVals);
+                employee_id = newEmpResult.rows[0].id;
+                console.log('Created employee record with id:', employee_id);
+              }
+            } else {
+              return res.status(400).json({ 
+                error: 'User not found. Please ensure you are logged in correctly.' 
+              });
+            }
+          }
+        } else {
+          // Table doesn't have user_id column, try to find employee by other means
+          // For now, we'll need to use a different approach
+          console.log('employees table does not have user_id column');
+          
+          // Try to get the first employee or create a default one
+          // This is a fallback - ideally the employees table should have user_id
+          const firstEmp = await pool.query('SELECT id FROM hrms_data.employees LIMIT 1');
+          
+          if (firstEmp.rows.length > 0) {
+            employee_id = firstEmp.rows[0].id;
+            console.log('Using first available employee_id:', employee_id);
+          } else {
+            return res.status(400).json({ 
+              error: 'No employee records found. Please contact administrator to create an employee record for your user account.' 
+            });
+          }
+        }
+      } catch (empError) {
+        console.error('Error getting/creating employee:', empError);
+        console.error('Error details:', empError.message, empError.stack);
+        // If we can't get employee_id, return error
+        return res.status(400).json({ 
+          error: `Unable to determine employee_id: ${empError.message}. Please ensure you have an employee record or contact administrator.` 
+        });
+      }
+    }
+    
+    // Final check - employee_id MUST be set and valid
+    if (!employee_id || employee_id === null || employee_id === undefined) {
+      console.error('CRITICAL: employee_id is still null after all processing');
+      console.error('Request body was:', req.body);
+      return res.status(400).json({ 
+        error: 'Unable to determine employee_id. Please ensure you have an employee record. If you are an admin, please contact the system administrator to create an employee record for your account.' 
+      });
+    }
+    
+    // Ensure employee_id is an integer
+    employee_id = parseInt(employee_id);
+    if (isNaN(employee_id)) {
+      console.error('CRITICAL: employee_id is not a valid number:', employee_id);
+      return res.status(400).json({ 
+        error: 'Invalid employee_id. Please contact administrator.' 
+      });
+    }
+    
+    console.log('Using employee_id:', employee_id, 'for leave request');
+    
+    // Validate required fields
+    if (!leave_type_id || !from_date || !to_date) {
+      return res.status(400).json({ error: 'Missing required fields: leave_type_id, from_date, to_date' });
+    }
+    
+    // Calculate number_of_days if not provided (inclusive: from 29 to 30 = 2 days)
+    if (number_of_days === null || number_of_days === undefined) {
+      const from = new Date(from_date);
+      const to = new Date(to_date);
+      const diffTime = Math.abs(to.getTime() - from.getTime());
+      number_of_days = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1; // +1 to include both dates
+    }
+    
+    // Ensure number_of_days and leave_type_id are integers
+    number_of_days = parseInt(number_of_days);
+    leave_type_id = parseInt(leave_type_id);
+    
+    // Validate business rules using database function
+    try {
+      const validationResult = await pool.query(
+        'SELECT hrms_data.validate_leave_request($1, $2, $3, $4, $5) as result',
+        [employee_id, leave_type_id, from_date, to_date, number_of_days]
+      );
+      
+      if (validationResult.rows.length > 0) {
+        const validation = validationResult.rows[0].result;
+        if (validation.valid === false) {
+          const errors = Array.isArray(validation.errors) 
+            ? validation.errors.map(e => e.message || e).join('; ')
+            : validation.errors.message || 'Validation failed';
+          return res.status(400).json({ 
+            error: `Leave request validation failed: ${errors}`,
+            validation_errors: validation.errors
+          });
+        }
+      }
+    } catch (validationError) {
+      console.error('Validation error (continuing anyway):', validationError);
+      // Continue if validation function doesn't exist yet
+    }
+    
+    console.log('Inserting leave request with:', {
+      employee_id,
+      leave_type_id,
+      from_date,
+      to_date,
+      number_of_days,
+      comments: comments || ''
+    });
+    
+    try {
+      const result = await pool.query(
+        `INSERT INTO hrms_data.leave_requests (employee_id, leave_type_id, from_date, to_date, number_of_days, comments, applied_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $1) RETURNING *`,
+        [employee_id, leave_type_id, from_date, to_date, number_of_days, comments || '']
+      );
+      
+      console.log('Leave request created successfully:', result.rows[0].id);
+      res.status(201).json(result.rows[0]);
+    } catch (insertError) {
+      console.error('Error inserting leave request:', insertError);
+      console.error('Insert error details:', insertError.message, insertError.stack);
+      res.status(500).json({ 
+        error: `Failed to create leave request: ${insertError.message}` 
+      });
+    }
   } catch (error) {
     console.error('Error creating leave request:', error);
     res.status(500).json({ error: error.message });
@@ -2123,11 +2477,57 @@ app.post('/api/leave-requests', async (req, res) => {
 app.put('/api/leave-requests/:id', async (req, res) => {
   try {
     const { status, approved_by } = req.body;
+    
+    // Get the leave request details first
+    const leaveRequest = await pool.query(
+      'SELECT * FROM hrms_data.leave_requests WHERE id = $1',
+      [req.params.id]
+    );
+    
+    if (leaveRequest.rows.length === 0) {
+      return res.status(404).json({ error: 'Leave request not found' });
+    }
+    
+    const lr = leaveRequest.rows[0];
+    const oldStatus = lr.status;
+    
+    // Update the leave request status
     const result = await pool.query(
-      `UPDATE leave_requests SET status = $1, approved_by = $2, approved_date = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP 
+      `UPDATE hrms_data.leave_requests SET status = $1, approved_by = $2, approved_date = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP 
        WHERE id = $3 RETURNING *`,
       [status, approved_by, req.params.id]
     );
+    
+    // If status changed to approved/taken/scheduled, deduct from entitlement
+    if ((status === 'approved' || status === 'taken' || status === 'scheduled') && 
+        (oldStatus !== 'approved' && oldStatus !== 'taken' && oldStatus !== 'scheduled')) {
+      // Update leave entitlement - add used days
+      await pool.query(
+        `UPDATE hrms_data.leave_entitlements 
+         SET used_days = COALESCE(used_days, 0) + $1,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE employee_id = $2 AND leave_type_id = $3
+         AND (leave_period_start IS NULL OR leave_period_start <= $4)
+         AND (leave_period_end IS NULL OR leave_period_end >= $4)`,
+        [lr.number_of_days, lr.employee_id, lr.leave_type_id, lr.from_date]
+      );
+    }
+    
+    // If status changed from approved/taken/scheduled to rejected/cancelled, restore entitlement
+    if ((status === 'rejected' || status === 'cancelled') && 
+        (oldStatus === 'approved' || oldStatus === 'taken' || oldStatus === 'scheduled')) {
+      // Restore entitlement - subtract used days
+      await pool.query(
+        `UPDATE hrms_data.leave_entitlements 
+         SET used_days = GREATEST(COALESCE(used_days, 0) - $1, 0),
+             updated_at = CURRENT_TIMESTAMP
+         WHERE employee_id = $2 AND leave_type_id = $3
+         AND (leave_period_start IS NULL OR leave_period_start <= $4)
+         AND (leave_period_end IS NULL OR leave_period_end >= $4)`,
+        [lr.number_of_days, lr.employee_id, lr.leave_type_id, lr.from_date]
+      );
+    }
+    
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Error updating leave request:', error);
@@ -2138,7 +2538,7 @@ app.put('/api/leave-requests/:id', async (req, res) => {
 // Holidays
 app.get('/api/holidays', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM holidays ORDER BY date');
+    const result = await pool.query('SELECT * FROM hrms_data.holidays ORDER BY date');
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching holidays:', error);
@@ -2150,7 +2550,7 @@ app.post('/api/holidays', async (req, res) => {
   try {
     const { name, date, full_day, repeats_annually } = req.body;
     const result = await pool.query(
-      'INSERT INTO holidays (name, date, full_day, repeats_annually) VALUES ($1, $2, $3, $4) RETURNING *',
+      'INSERT INTO hrms_data.holidays (name, date, full_day, repeats_annually) VALUES ($1, $2, $3, $4) RETURNING *',
       [name, date, full_day !== false, repeats_annually === true]
     );
     res.status(201).json(result.rows[0]);
@@ -2164,7 +2564,7 @@ app.put('/api/holidays/:id', async (req, res) => {
   try {
     const { name, date, full_day, repeats_annually } = req.body;
     const result = await pool.query(
-      'UPDATE holidays SET name = $1, date = $2, full_day = $3, repeats_annually = $4, updated_at = CURRENT_TIMESTAMP WHERE id = $5 RETURNING *',
+      'UPDATE hrms_data.holidays SET name = $1, date = $2, full_day = $3, repeats_annually = $4, updated_at = CURRENT_TIMESTAMP WHERE id = $5 RETURNING *',
       [name, date, full_day !== false, repeats_annually === true, req.params.id]
     );
     res.json(result.rows[0]);
@@ -2176,10 +2576,348 @@ app.put('/api/holidays/:id', async (req, res) => {
 
 app.delete('/api/holidays/:id', async (req, res) => {
   try {
-    await pool.query('DELETE FROM holidays WHERE id = $1', [req.params.id]);
+    await pool.query('DELETE FROM hrms_data.holidays WHERE id = $1', [req.params.id]);
     res.json({ success: true });
   } catch (error) {
     console.error('Error deleting holiday:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Work Week Configuration
+app.get('/api/work-week', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM hrms_data.work_week ORDER BY id DESC LIMIT 1');
+    if (result.rows.length > 0) {
+      res.json(result.rows[0]);
+    } else {
+      // Return default work week
+      res.json({
+        id: 1,
+        monday: true,
+        tuesday: true,
+        wednesday: true,
+        thursday: true,
+        friday: true,
+        saturday: false,
+        sunday: false
+      });
+    }
+  } catch (error) {
+    console.error('Error fetching work week:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/work-week', async (req, res) => {
+  try {
+    const { monday, tuesday, wednesday, thursday, friday, saturday, sunday } = req.body;
+    const result = await pool.query(
+      `INSERT INTO hrms_data.work_week (monday, tuesday, wednesday, thursday, friday, saturday, sunday)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [monday !== false, tuesday !== false, wednesday !== false, thursday !== false, friday !== false, saturday === true, sunday === true]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating work week:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/work-week/:id', async (req, res) => {
+  try {
+    const { monday, tuesday, wednesday, thursday, friday, saturday, sunday } = req.body;
+    const result = await pool.query(
+      `UPDATE hrms_data.work_week SET monday = $1, tuesday = $2, wednesday = $3, thursday = $4, friday = $5, saturday = $6, sunday = $7, updated_at = CURRENT_TIMESTAMP WHERE id = $8 RETURNING *`,
+      [monday !== false, tuesday !== false, wednesday !== false, thursday !== false, friday !== false, saturday === true, sunday === true, req.params.id]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating work week:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Payable Days Calculation
+app.get('/api/payable-days', async (req, res) => {
+  try {
+    const { employee_id, month } = req.query;
+    if (!employee_id || !month) {
+      return res.status(400).json({ error: 'employee_id and month are required' });
+    }
+    const result = await pool.query(
+      'SELECT * FROM hrms_data.calculate_payable_days($1, $2)',
+      [month, parseInt(employee_id)]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error calculating payable days:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Monthly Leave Summary (Comprehensive - All Requirements)
+app.get('/api/monthly-leave-summary', async (req, res) => {
+  try {
+    const { employee_id, month } = req.query;
+    if (!employee_id || !month) {
+      return res.status(400).json({ error: 'employee_id and month are required' });
+    }
+    
+    // Call the comprehensive monthly summary function
+    const result = await pool.query(
+      'SELECT * FROM hrms_data.get_monthly_leave_summary($1, $2::DATE)',
+      [parseInt(employee_id), month]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'No summary data found' });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error fetching monthly leave summary:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Leave Entitlements
+app.get('/api/leave-entitlements', async (req, res) => {
+  try {
+    const { employee_id } = req.query;
+    let query = `
+      SELECT le.*, lt.name as leave_type_name, lt.is_paid
+      FROM hrms_data.leave_entitlements le
+      JOIN hrms_data.leave_types lt ON le.leave_type_id = lt.id
+      WHERE 1=1
+    `;
+    const params = [];
+    if (employee_id) {
+      query += ' AND le.employee_id = $1';
+      params.push(employee_id);
+    }
+    query += ' ORDER BY le.leave_period_start DESC, lt.name';
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching leave entitlements:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/leave-entitlements', async (req, res) => {
+  try {
+    const { employee_id, leave_type_id, entitlement_days, leave_period_start, leave_period_end } = req.body;
+    const result = await pool.query(
+      `INSERT INTO hrms_data.leave_entitlements (employee_id, leave_type_id, entitlement_days, leave_period_start, leave_period_end)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [employee_id, leave_type_id, entitlement_days || 0, leave_period_start, leave_period_end]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating leave entitlement:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/leave-entitlements/:id', async (req, res) => {
+  try {
+    const { entitlement_days, used_days, leave_period_start, leave_period_end } = req.body;
+    const result = await pool.query(
+      `UPDATE hrms_data.leave_entitlements 
+       SET entitlement_days = COALESCE($1, entitlement_days), 
+           used_days = COALESCE($2, used_days),
+           leave_period_start = COALESCE($3, leave_period_start),
+           leave_period_end = COALESCE($4, leave_period_end),
+           updated_at = CURRENT_TIMESTAMP 
+       WHERE id = $5 RETURNING *`,
+      [entitlement_days, used_days, leave_period_start, leave_period_end, req.params.id]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating leave entitlement:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Leave Reports
+app.get('/api/leave-reports/employee/:employeeId', async (req, res) => {
+  try {
+    const { employeeId } = req.params;
+    const { year, month, user_id } = req.query;
+    const reportYear = year ? parseInt(year) : new Date().getFullYear();
+    const reportMonth = month ? parseInt(month) : null;
+    
+    let finalEmployeeId = parseInt(employeeId);
+    
+    // If user_id is provided but employeeId is not valid, try to find employee by user_id
+    if (user_id && (!employeeId || employeeId === '0' || employeeId === 'undefined')) {
+      const empResult = await pool.query(
+        'SELECT id FROM hrms_data.employees WHERE user_id = $1 LIMIT 1',
+        [parseInt(user_id)]
+      );
+      if (empResult.rows.length > 0) {
+        finalEmployeeId = empResult.rows[0].id;
+      } else {
+        return res.status(404).json({ error: 'Employee record not found for this user' });
+      }
+    }
+    
+    // Call the database function to get employee leave report
+    console.log('📊 Calling get_employee_leave_report with:', { finalEmployeeId, reportYear });
+    const result = await pool.query(
+      'SELECT * FROM hrms_data.get_employee_leave_report($1, $2)',
+      [finalEmployeeId, reportYear]
+    );
+    
+    console.log('📊 Database function returned rows:', result.rows.length);
+    
+    if (result.rows.length === 0) {
+      console.log('⚠️ No leave types found in database');
+      return res.json({ leave_summary: [] });
+    }
+    
+    // The function returns multiple rows (one per leave type)
+    // Structure it as { leave_summary: [...] }
+    let reportData = { leave_summary: result.rows };
+    console.log('📊 Initial reportData:', { 
+      leaveTypesCount: reportData.leave_summary.length,
+      sample: reportData.leave_summary[0] 
+    });
+    
+    // If month is specified, update used_days to reflect only that month
+    if (reportMonth && reportData.leave_summary) {
+      // Use a single query to get all monthly data at once (more efficient)
+      const monthlyDataQuery = `
+        SELECT 
+            lt.id as leave_type_id,
+            lt.name as leave_type_name,
+            COALESCE(SUM(CASE WHEN lr.status IN ('approved', 'taken', 'scheduled') THEN lr.number_of_days ELSE 0 END), 0) as used_days,
+            COALESCE(SUM(CASE WHEN lr.status = 'pending' THEN lr.number_of_days ELSE 0 END), 0) as pending_days,
+            COALESCE(SUM(CASE WHEN lr.status = 'scheduled' THEN lr.number_of_days ELSE 0 END), 0) as scheduled_days,
+            COALESCE(SUM(CASE WHEN lr.status = 'taken' THEN lr.number_of_days ELSE 0 END), 0) as taken_days
+        FROM hrms_data.leave_types lt
+        LEFT JOIN hrms_data.leave_requests lr ON (
+            lr.leave_type_id = lt.id
+            AND lr.employee_id = $1
+            AND EXTRACT(YEAR FROM lr.from_date) = $2
+            AND EXTRACT(MONTH FROM lr.from_date) = $3
+            AND lr.status IN ('approved', 'taken', 'scheduled', 'pending')
+        )
+        WHERE lt.status != 'deleted'
+        GROUP BY lt.id, lt.name
+      `;
+      
+      const monthlyResult = await pool.query(monthlyDataQuery, [finalEmployeeId, reportYear, reportMonth]);
+      const monthlyMap = {};
+      monthlyResult.rows.forEach(row => {
+        monthlyMap[row.leave_type_name] = row;
+      });
+      
+      // Update report data with monthly information
+      reportData = {
+        ...reportData,
+        leave_summary: reportData.leave_summary.map((item) => {
+          const monthly = monthlyMap[item.leave_type_name] || {
+            used_days: 0,
+            pending_days: 0,
+            scheduled_days: 0,
+            taken_days: 0
+          };
+          
+          const monthlyData = item.monthly_breakdown && Array.isArray(item.monthly_breakdown) 
+            ? item.monthly_breakdown.find((m) => m.month === reportMonth)
+            : null;
+          
+          return {
+            ...item,
+            monthly_breakdown: monthlyData ? [monthlyData] : [],
+            used_days: parseFloat(monthly.used_days || 0),
+            balance_days: item.total_entitlement - parseFloat(monthly.used_days || 0),
+            monthly_pending: parseFloat(monthly.pending_days || 0),
+            monthly_scheduled: parseFloat(monthly.scheduled_days || 0),
+            monthly_taken: parseFloat(monthly.taken_days || 0),
+            annual_used_days: item.used_days,
+            annual_balance_days: item.balance_days
+          };
+        })
+      };
+    }
+    
+    // Ensure leave_summary is always an array
+    if (!Array.isArray(reportData.leave_summary)) {
+      reportData.leave_summary = [];
+    }
+    
+    // Debug logging
+    console.log('📊 Leave Report Response:', {
+      employeeId: finalEmployeeId,
+      year: reportYear,
+      month: reportMonth,
+      leaveTypesCount: reportData.leave_summary.length,
+      sample: reportData.leave_summary[0] || null,
+      allLeaveTypes: reportData.leave_summary.map((item) => ({
+        name: item.leave_type_name,
+        used: item.used_days,
+        pending: item.monthly_pending,
+        scheduled: item.monthly_scheduled,
+        taken: item.monthly_taken
+      })),
+      fullStructure: JSON.stringify(reportData).substring(0, 200)
+    });
+    
+    // CRITICAL: Ensure we always return { leave_summary: [...] } structure
+    const response = {
+      leave_summary: Array.isArray(reportData.leave_summary) ? reportData.leave_summary : []
+    };
+    
+    console.log('📊 Sending response structure:', {
+      hasLeaveSummary: !!response.leave_summary,
+      isArray: Array.isArray(response.leave_summary),
+      length: response.leave_summary.length
+    });
+    
+    res.json(response);
+  } catch (error) {
+    console.error('Error fetching employee leave report:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Helper endpoint to get employee ID by user_id
+app.get('/api/employees/by-user/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const parsedUserId = parseInt(userId);
+
+    // First, try to find directly by user_id column
+    let result = await pool.query(
+      'SELECT id, first_name, last_name, email FROM hrms_data.employees WHERE user_id = $1 LIMIT 1',
+      [parsedUserId]
+    );
+
+    // If not found, try to infer from leave_requests (user has applied leave)
+    if (result.rows.length === 0) {
+      const lrResult = await pool.query(
+        'SELECT employee_id FROM hrms_data.leave_requests WHERE user_id = $1 ORDER BY created_at DESC NULLS LAST LIMIT 1',
+        [parsedUserId]
+      );
+
+      if (lrResult.rows.length > 0 && lrResult.rows[0].employee_id) {
+        result = await pool.query(
+          'SELECT id, first_name, last_name, email FROM hrms_data.employees WHERE id = $1 LIMIT 1',
+          [lrResult.rows[0].employee_id]
+        );
+      }
+    }
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Employee not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error fetching employee by user_id:', error);
     res.status(500).json({ error: error.message });
   }
 });

@@ -30,6 +30,7 @@ import Projects from './pages/Projects';
 import Calendar from './pages/Calendar';
 import Attendance from './pages/Attendance';
 import LeaveManagement from './pages/LeaveManagement';
+import LeaveReports from './pages/LeaveReports';
 import Payroll from './pages/Payroll';
 import Expenses from './pages/Expenses';
 import Recruitment from './pages/Recruitment';
@@ -317,6 +318,7 @@ const Dashboard: React.FC = () => {
   const quickLaunchItems = [
     { name: 'Apply Leave', icon: UmbrellaIcon, route: '/leave' },
     { name: 'Leave List', icon: CalendarIcon, route: '/leave' },
+    { name: 'Leave Reports', icon: ClipboardIcon, route: '/leave/reports' },
     { name: 'Timesheets', icon: ClockIcon, route: '/time' },
     { name: 'My Info', icon: UsersIcon, route: '/my-info' },
     { name: 'Recruitment', icon: UserTieIcon, route: '/recruitment' },
@@ -1799,6 +1801,7 @@ const App: React.FC = () => {
         <Route path="/reports" element={<ProtectedRoute requiredPermission="view_reports"><Reports /></ProtectedRoute>} />
         <Route path="/reports/pim" element={<ProtectedRoute requiredPermission="view_reports"><PIMReports /></ProtectedRoute>} />
         <Route path="/reports/employee" element={<ProtectedRoute requiredPermission="view_reports"><EmployeeReports /></ProtectedRoute>} />
+        <Route path="/leave/reports" element={<ProtectedRoute><LeaveReports /></ProtectedRoute>} />
         <Route path="/my-info" element={<ProtectedRoute><MyInfo /></ProtectedRoute>} />
         <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><UserManagement /></ProtectedRoute>} />
         <Route path="/admin/users" element={<ProtectedRoute requiredRole="admin"><UserManagement /></ProtectedRoute>} />

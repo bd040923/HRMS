@@ -408,14 +408,15 @@ class ApiService {
     return this.request<any>(`/leave-types/${id}`, { method: 'DELETE' });
   }
 
-  async getLeaveRequests(filters?: { employee_id?: number; status?: string }) {
+  async getLeaveRequests(filters?: { employee_id?: number; user_id?: number; status?: string }) {
     const params = new URLSearchParams();
     if (filters?.employee_id) params.append('employee_id', filters.employee_id.toString());
+    if (filters?.user_id) params.append('user_id', filters.user_id.toString());
     if (filters?.status) params.append('status', filters.status);
     return this.request<any[]>(`/leave-requests${params.toString() ? `?${params}` : ''}`);
   }
 
-  async createLeaveRequest(data: { employee_id: number; leave_type_id: number; from_date: string; to_date: string; number_of_days: number; comments?: string }) {
+  async createLeaveRequest(data: { employee_id?: number; user_id?: number; leave_type_id: number; from_date: string; to_date: string; number_of_days: number; comments?: string }) {
     return this.request<any>('/leave-requests', { method: 'POST', body: JSON.stringify(data) });
   }
 
@@ -437,6 +438,58 @@ class ApiService {
 
   async deleteHoliday(id: number) {
     return this.request<any>(`/holidays/${id}`, { method: 'DELETE' });
+  }
+
+  // Work Week
+  async getWorkWeek() {
+    return this.request<any>('/work-week');
+  }
+
+  async createWorkWeek(data: { monday: boolean; tuesday: boolean; wednesday: boolean; thursday: boolean; friday: boolean; saturday: boolean; sunday: boolean }) {
+    return this.request<any>('/work-week', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async updateWorkWeek(id: number, data: { monday: boolean; tuesday: boolean; wednesday: boolean; thursday: boolean; friday: boolean; saturday: boolean; sunday: boolean }) {
+    return this.request<any>(`/work-week/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+
+  // Payable Days
+  async getPayableDays(employeeId: number, month: string) {
+    return this.request<any>(`/payable-days?employee_id=${employeeId}&month=${month}`);
+  }
+
+  // Monthly Leave Summary (Comprehensive)
+  async getMonthlyLeaveSummary(employeeId: number, month: string) {
+    return this.request<any>(`/monthly-leave-summary?employee_id=${employeeId}&month=${month}`);
+  }
+
+  // Leave Entitlements
+  async getLeaveEntitlements(filters?: { employee_id?: number }) {
+    const params = new URLSearchParams();
+    if (filters?.employee_id) params.append('employee_id', filters.employee_id.toString());
+    return this.request<any[]>(`/leave-entitlements${params.toString() ? `?${params}` : ''}`);
+  }
+
+  async createLeaveEntitlement(data: { employee_id: number; leave_type_id: number; entitlement_days: number; leave_period_start: string; leave_period_end: string }) {
+    return this.request<any>('/leave-entitlements', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async updateLeaveEntitlement(id: number, data: { entitlement_days?: number; used_days?: number; leave_period_start?: string; leave_period_end?: string }) {
+    return this.request<any>(`/leave-entitlements/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+
+  // Leave Reports
+  async getEmployeeLeaveReport(employeeId: number, year?: number, month?: number) {
+    const params = new URLSearchParams();
+    if (year) params.append('year', year.toString());
+    if (month) params.append('month', month.toString());
+    const queryString = params.toString();
+    return this.request<any>(`/leave-reports/employee/${employeeId}${queryString ? '?' + queryString : ''}`);
+  }
+
+  async getAllLeaveReports(year?: number) {
+    const yearParam = year ? `?year=${year}` : '';
+    return this.request<any>(`/leave-reports/all${yearParam}`);
   }
 
   // ============================================================================
@@ -641,6 +694,14 @@ class ApiService {
     return this.request<any>('/employment-status', { method: 'POST', body: JSON.stringify(data) });
   }
 
+  async updateEmploymentStatus(id: number, data: { name: string }) {
+    return this.request<any>(`/employment-status/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+
+  async deleteEmploymentStatus(id: number) {
+    return this.request<any>(`/employment-status/${id}`, { method: 'DELETE' });
+  }
+
   async getJobCategories() {
     return this.request<any[]>('/job-categories');
   }
@@ -649,12 +710,28 @@ class ApiService {
     return this.request<any>('/job-categories', { method: 'POST', body: JSON.stringify(data) });
   }
 
+  async updateJobCategory(id: number, data: { name: string }) {
+    return this.request<any>(`/job-categories/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+
+  async deleteJobCategory(id: number) {
+    return this.request<any>(`/job-categories/${id}`, { method: 'DELETE' });
+  }
+
   async getWorkShifts() {
     return this.request<any[]>('/work-shifts');
   }
 
-  async createWorkShift(data: any) {
+  async createWorkShift(data: { name: string; hours_per_day: number; start_time: string; end_time: string }) {
     return this.request<any>('/work-shifts', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async updateWorkShift(id: number, data: { name: string; hours_per_day: number; start_time: string; end_time: string }) {
+    return this.request<any>(`/work-shifts/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+
+  async deleteWorkShift(id: number) {
+    return this.request<any>(`/work-shifts/${id}`, { method: 'DELETE' });
   }
 
   async getNationalities() {

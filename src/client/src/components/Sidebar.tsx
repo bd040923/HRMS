@@ -43,7 +43,16 @@ const Sidebar: React.FC = () => {
   const menuItems: SidebarItem[] = [
     { name: 'Admin', path: '/admin/users', icon: '👥' },
     { name: 'PIM', path: '/employees', icon: '👤' },
-    { name: 'Leave', path: '/leave', icon: '📋' },
+    { 
+      name: 'Leave', 
+      path: '/leave', 
+      icon: '📋',
+      submenu: [
+        { name: 'Apply Leave', path: '/leave' },
+        { name: 'My Leave', path: '/leave' },
+        { name: 'Leave Reports', path: '/leave/reports' },
+      ]
+    },
     { name: 'Time', path: '/attendance', icon: '⏰' },
     { name: 'Recruitment', path: '/recruitment', icon: '🔍' },
     { name: 'My Info', path: '/my-info', icon: '👤' },
@@ -213,7 +222,15 @@ const Sidebar: React.FC = () => {
               {/* Main Menu Item */}
               {hasSubmenu ? (
                 <button
-                  onClick={() => toggleSubmenu(item.name)}
+                  onClick={(e) => {
+                    if (collapsed) {
+                      // When collapsed, navigate to the main path
+                      navigate(item.path);
+                    } else {
+                      // When expanded, toggle submenu
+                      toggleSubmenu(item.name);
+                    }
+                  }}
                   style={{
                     width: '100%',
                     display: 'flex',

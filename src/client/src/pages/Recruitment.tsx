@@ -16,7 +16,7 @@ const COLORS = {
   text: '#333333',
   textLight: '#666666',
   border: '#e0e0e0',
-  accent: '#28a745',
+  accent: '#78176b', // Using primary purple instead of green
 };
 
 const TYPOGRAPHY = {
@@ -621,10 +621,10 @@ const Recruitment: React.FC = () => {
                       <td style={{ padding: '10px 14px' }}>{candidate.date_of_application}</td>
                       <td style={{ padding: '10px 14px' }}>{candidate.status}</td>
                       <td style={{ padding: '10px 14px' }}>
-                        <button onClick={() => handleEditCandidate(candidate)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '18px', marginRight: '8px' }} title="Edit">
+                        <button onClick={() => handleEditCandidate(candidate)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '18px', marginRight: '8px', color: COLORS.primary }} title="Edit">
                           ✏️
                         </button>
-                        <button onClick={() => handleDeleteCandidate(candidate.id)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '18px' }} title="Delete">
+                        <button onClick={() => handleDeleteCandidate(candidate.id)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '18px', color: COLORS.textLight }} title="Delete">
                           🗑️
                         </button>
                       </td>
@@ -803,10 +803,10 @@ const Recruitment: React.FC = () => {
                       <td style={{ padding: '10px 14px' }}>{vacancy.hiring_manager || '(Deleted)'}</td>
                       <td style={{ padding: '10px 14px' }}>{vacancy.status.charAt(0).toUpperCase() + vacancy.status.slice(1)}</td>
                       <td style={{ padding: '10px 14px' }}>
-                        <button onClick={() => handleEditVacancy(vacancy)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '18px', marginRight: '8px' }} title="Edit">
+                        <button onClick={() => handleEditVacancy(vacancy)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '18px', marginRight: '8px', color: COLORS.primary }} title="Edit">
                           ✏️
                         </button>
-                        <button onClick={() => handleDeleteVacancy(vacancy.id)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '18px' }} title="Delete">
+                        <button onClick={() => handleDeleteVacancy(vacancy.id)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '18px', color: COLORS.textLight }} title="Delete">
                           🗑️
                         </button>
                       </td>
@@ -898,7 +898,7 @@ const Recruitment: React.FC = () => {
       </button>
 
       <h1 style={{ color: COLORS.primary, marginBottom: '16px', marginTop: 0, fontSize: TYPOGRAPHY.heading.fontSize, fontFamily: TYPOGRAPHY.fontFamily, fontWeight: TYPOGRAPHY.heading.fontWeight }}>
-        Recruitment
+        Onboarding
       </h1>
 
       <div style={{ display: 'flex', gap: '12px', marginBottom: '24px' }}>

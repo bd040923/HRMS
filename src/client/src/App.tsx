@@ -1554,7 +1554,7 @@ const getPageTitle = (pathname: string): string => {
     '/attendance': 'Attendance',
     '/payroll': 'Payroll',
     '/expenses': 'Expenses',
-    '/recruitment': 'Recruitment',
+    '/recruitment': 'Onboarding',
     '/performance': 'Performance',
     '/training': 'Training',
     '/reports': 'Reports',

@@ -461,8 +461,8 @@ const UserManagement: React.FC = () => {
                 style={{
                   padding: '8px 20px',
                   backgroundColor: COLORS.white,
-                  color: '#28a745',
-                  border: `1px solid #28a745`,
+                  color: COLORS.primary,
+                  border: `1px solid ${COLORS.primary}`,
                   borderRadius: '6px',
                   cursor: 'pointer',
                   fontSize: TYPOGRAPHY.textImportant.fontSize,
@@ -476,7 +476,7 @@ const UserManagement: React.FC = () => {
                 onClick={handleSearch}
                 style={{
                   padding: '8px 20px',
-                  backgroundColor: '#28a745',
+                  backgroundColor: COLORS.primary,
                   color: COLORS.white,
                   border: 'none',
                   borderRadius: '6px',
@@ -522,8 +522,8 @@ const UserManagement: React.FC = () => {
                 alignItems: 'center',
                 gap: '8px'
               }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#218838'}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#28a745'}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = COLORS.primaryHover}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = COLORS.primary}
             >
               + Add
             </button>
@@ -655,7 +655,7 @@ const UserManagement: React.FC = () => {
                       <span style={{
                         padding: '4px 12px',
                         borderRadius: '4px',
-                        backgroundColor: user.status === 'enabled' ? '#28a745' : '#dc3545',
+                        backgroundColor: user.status === 'enabled' ? COLORS.primary : '#dc3545',
                         color: COLORS.white,
                         fontSize: TYPOGRAPHY.textNote.fontSize,
                         fontWeight: 500

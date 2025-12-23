@@ -10,7 +10,7 @@ import { apiService } from '../../services/api';
 
 const COLORS = {
   primary: '#78176b',
-  success: '#28a745',
+  success: '#78176b', // Using primary purple instead of green
   danger: '#dc3545',
   white: '#ffffff',
   text: '#333333',

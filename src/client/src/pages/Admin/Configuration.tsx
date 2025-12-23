@@ -10,7 +10,7 @@ import { useNavigate } from 'react-router-dom';
 
 const COLORS = {
   primary: '#78176b',
-  success: '#28a745',
+  success: '#78176b', // Using primary purple instead of green
   white: '#ffffff',
   text: '#333333',
   textLight: '#666666',

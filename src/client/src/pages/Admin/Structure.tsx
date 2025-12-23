@@ -17,7 +17,7 @@ const COLORS = {
   text: '#333333',
   textLight: '#666666',
   border: '#e0e0e0',
-  green: '#76c043',
+  green: '#78176b', // Using primary purple instead of green
   red: '#dc3545',
 };
 
@@ -243,7 +243,7 @@ const Structure: React.FC = () => {
                   background: 'none',
                   border: 'none',
                   cursor: 'pointer',
-                  color: COLORS.green,
+                  color: COLORS.primary,
                   fontSize: '18px',
                   padding: '4px 8px',
                   title: 'Add Child Unit',

@@ -169,7 +169,7 @@ const JobTitles: React.FC = () => {
               onClick={handleAdd}
               style={{
                 padding: '10px 20px',
-                backgroundColor: '#28a745',
+                backgroundColor: COLORS.primary,
                 color: COLORS.white,
                 border: 'none',
                 borderRadius: '6px',
@@ -181,8 +181,8 @@ const JobTitles: React.FC = () => {
                 alignItems: 'center',
                 gap: '8px'
               }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#218838'}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#28a745'}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = COLORS.primaryHover}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = COLORS.primary}
             >
               + Add
             </button>

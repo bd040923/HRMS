@@ -43,6 +43,7 @@ const Sidebar: React.FC = () => {
   }, [setCollapsed]);
 
   const menuItems: SidebarItem[] = [
+    ...(isAdmin() ? [{ name: 'Dashboard', path: '/dashboard', icon: '📊' }] : []),
     ...(isAdmin() ? [{ name: 'Admin', path: '/admin/users', icon: '👥' }] : []),
     ...(isAdmin() ? [{ name: 'PIM', path: '/employees', icon: '👤' }] : []),
     { 
@@ -51,7 +52,7 @@ const Sidebar: React.FC = () => {
       icon: '📋'
     },
     { name: 'Time', path: '/attendance', icon: '⏰' },
-    { name: 'Recruitment', path: '/recruitment', icon: '🔍' },
+    { name: 'Onboarding', path: '/recruitment', icon: '🔍' },
     { name: 'My Info', path: '/my-info', icon: '👤' },
   ];
 
@@ -194,8 +195,8 @@ const Sidebar: React.FC = () => {
             if (searchQuery !== '' && !item.name.toLowerCase().includes(searchQuery.toLowerCase())) {
               return false;
             }
-            // Hide Recruitment for non-admin users
-            if (item.name === 'Recruitment' && !isAdmin()) {
+            // Hide Onboarding for non-admin users
+            if (item.name === 'Onboarding' && !isAdmin()) {
               return false;
             }
             return true;

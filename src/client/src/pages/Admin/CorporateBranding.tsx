@@ -11,7 +11,7 @@ import { apiService } from '../../services/api';
 const COLORS = {
   primary: '#78176b',
   primaryHover: '#590a4f',
-  success: '#76c043',
+  success: '#78176b', // Using primary purple instead of green
   white: '#ffffff',
   text: '#222222',
   textLight: '#666666',

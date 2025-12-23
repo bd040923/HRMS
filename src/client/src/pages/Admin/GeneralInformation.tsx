@@ -17,7 +17,7 @@ const COLORS = {
   text: '#333333',
   textLight: '#666666',
   border: '#e0e0e0',
-  green: '#76c043',
+  green: '#78176b', // Using primary purple instead of green
   red: '#dc3545',
 };
 

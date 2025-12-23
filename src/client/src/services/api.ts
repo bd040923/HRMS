@@ -16,13 +16,15 @@ class ApiService {
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
     
+    const isFormData = options.body instanceof FormData;
+    const mergedHeaders = isFormData
+      ? { ...(options.headers || {}) } // let browser set multipart boundaries
+      : { 'Content-Type': 'application/json', ...(options.headers || {}) };
+
     try {
       const response = await fetch(url, {
         ...options,
-        headers: {
-          'Content-Type': 'application/json',
-          ...options.headers,
-        },
+        headers: mergedHeaders,
       });
 
       if (!response.ok) {
@@ -39,12 +41,31 @@ class ApiService {
         throw error;
       }
 
+      // Handle empty responses (common for DELETE requests)
       const contentType = response.headers.get('content-type');
+      const contentLength = response.headers.get('content-length');
+      
+      // If DELETE request and no content, return success object
+      if (options.method === 'DELETE' && (!contentLength || contentLength === '0')) {
+        return { success: true } as T;
+      }
+      
       if (contentType && contentType.includes('application/json')) {
-        const data = await response.json();
-        return data;
+        try {
+          const data = await response.json();
+          return data;
+        } catch (e) {
+          // If JSON parsing fails, return success for DELETE
+          if (options.method === 'DELETE') {
+            return { success: true } as T;
+          }
+          throw e;
+        }
       } else {
-        // If response is not JSON, return as text
+        // If response is not JSON, return as text or success for DELETE
+        if (options.method === 'DELETE') {
+          return { success: true } as T;
+        }
         const text = await response.text();
         return text as any;
       }
@@ -510,6 +531,10 @@ class ApiService {
     return this.request<any>(`/attendance-records/${id}/punch-out`, { method: 'PUT', body: JSON.stringify(data) });
   }
 
+  async deleteAttendanceRecord(id: number) {
+    return this.request<any>(`/attendance-records/${id}`, { method: 'DELETE' });
+  }
+
   async getCustomers() {
     return this.request<any[]>('/customers');
   }
@@ -542,15 +567,90 @@ class ApiService {
     return this.request<any>(`/projects/${id}`, { method: 'DELETE' });
   }
 
-  async getTimesheets(filters?: { employee_id?: number; status?: string }) {
+  // ============================================================================
+  // EMPLOYEE PROFILE & KYC
+  // ============================================================================
+  async getEmployeeProfile(employeeId?: number) {
+    const suffix = employeeId ? `?employee_id=${employeeId}` : '';
+    return this.request<any>(`/employee/profile${suffix}`);
+  }
+
+  async updateEmployeeProfile(body: FormData | any, employeeId?: number) {
+    const suffix = employeeId ? `?employee_id=${employeeId}` : '';
+    const isForm = body instanceof FormData;
+    return this.request<any>(`/employee/profile${suffix}`, {
+      method: 'PUT',
+      body,
+      headers: isForm ? undefined : { 'Content-Type': 'application/json' },
+    });
+  }
+
+  async uploadKycDocument(formData: FormData, employeeId?: number) {
+    if (employeeId) formData.append('employee_id', String(employeeId));
+    return this.request<any>('/employee/kyc/upload', { method: 'POST', body: formData });
+  }
+
+  async getKycStatus(employeeId?: number) {
+    const suffix = employeeId ? `?employee_id=${employeeId}` : '';
+    return this.request<any>(`/employee/kyc/status${suffix}`);
+  }
+
+  async updateKycStatus(status: string, employeeId?: number) {
+    const suffix = employeeId ? `?employee_id=${employeeId}` : '';
+    return this.request<any>(`/employee/kyc/status${suffix}`, {
+      method: 'PUT',
+      body: JSON.stringify({ status, employee_id: employeeId }),
+    });
+  }
+
+  async getTimesheets(filters?: { employee_id?: number; status?: string; start_date?: string; end_date?: string }) {
     const params = new URLSearchParams();
     if (filters?.employee_id) params.append('employee_id', filters.employee_id.toString());
     if (filters?.status) params.append('status', filters.status);
+    if (filters?.start_date) params.append('start_date', filters.start_date);
+    if (filters?.end_date) params.append('end_date', filters.end_date);
     return this.request<any[]>(`/timesheets${params.toString() ? `?${params}` : ''}`);
   }
 
-  async createTimesheet(data: { employee_id: number; project_id?: number; activity_id?: number; start_date: string; end_date: string }) {
+  async createTimesheet(data: { employee_id: number; start_date: string; end_date: string }) {
     return this.request<any>('/timesheets', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async getTimesheetEntries(timesheetId: number) {
+    return this.request<any[]>(`/timesheets/${timesheetId}/entries`);
+  }
+
+  async saveTimesheetEntry(timesheetId: number, data: { project_id?: number; activity_id?: number; entry_date: string; hours: number; comments?: string }) {
+    return this.request<any>(`/timesheets/${timesheetId}/entries`, { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async deleteTimesheetEntry(entryId: number) {
+    return this.request<any>(`/timesheet-entries/${entryId}`, { method: 'DELETE' });
+  }
+
+  async deleteProjectEntries(timesheetId: number, projectId: number, activityId?: number | null) {
+    let url = `/timesheets/${timesheetId}/projects/${projectId}/entries`;
+    if (activityId !== null && activityId !== undefined) {
+      url += `?activity_id=${activityId}`;
+    }
+    return this.request<any>(url, { method: 'DELETE' });
+  }
+
+  async deleteProjectEntries(timesheetId: number, projectId: number, activityId?: number | null) {
+    const url = activityId 
+      ? `/timesheets/${timesheetId}/projects/${projectId}/entries?activity_id=${activityId}`
+      : `/timesheets/${timesheetId}/projects/${projectId}/entries`;
+    return this.request<any>(url, { method: 'DELETE' });
+  }
+
+  async submitTimesheet(timesheetId: number, submittedTo: number) {
+    return this.request<any>(`/timesheets/${timesheetId}/submit`, { method: 'PUT', body: JSON.stringify({ submitted_to: submittedTo }) });
+  }
+
+  async getActivities(projectId?: number) {
+    const params = new URLSearchParams();
+    if (projectId) params.append('project_id', projectId.toString());
+    return this.request<any[]>(`/activities${params.toString() ? `?${params}` : ''}`);
   }
 
   // ============================================================================

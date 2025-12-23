@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import apiService from '../services/api';
+import { apiService } from '../services/api';
 
 const COLORS = {
   primary: '#78176b',
-  success: '#28a745',
+  success: '#78176b',
   danger: '#dc3545',
   warning: '#ffc107',
   text: '#222',

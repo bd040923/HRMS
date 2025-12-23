@@ -6,6 +6,7 @@
 // Load environment variables - EXPLICIT PATH
 const path = require('path');
 const fs = require('fs');
+const multer = require('multer');
 
 // Force dotenv to load from the server directory
 const envPath = path.join(__dirname, '.env');
@@ -139,8 +140,19 @@ const PORT = process.env.BACKEND_PORT || 3001;
 
 // Middleware
 app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+
+// Skip JSON parsing for multipart/form-data to avoid "Unexpected token" errors
+const jsonMiddleware = express.json();
+const urlEncodedMiddleware = express.urlencoded({ extended: true });
+app.use((req, res, next) => {
+  if (req.is('multipart/form-data')) {
+    return next();
+  }
+  return jsonMiddleware(req, res, (err) => {
+    if (err) return next(err);
+    return urlEncodedMiddleware(req, res, next);
+  });
+});
 
 // Request logging middleware (for debugging)
 app.use((req, res, next) => {
@@ -2419,8 +2431,21 @@ app.post('/api/leave-requests', async (req, res) => {
     number_of_days = parseInt(number_of_days);
     leave_type_id = parseInt(leave_type_id);
     
-    // Validate business rules using database function
+    // Validate business rules using database function - MANDATORY
+    let final_leave_type_id = leave_type_id;
+    let auto_converted = false;
+    let conversion_warning = null;
+    let validationPassed = false;
+    
     try {
+      console.log('🔍 Validating leave request:', {
+        employee_id,
+        leave_type_id,
+        from_date,
+        to_date,
+        number_of_days
+      });
+      
       const validationResult = await pool.query(
         'SELECT hrms_data.validate_leave_request($1, $2, $3, $4, $5) as result',
         [employee_id, leave_type_id, from_date, to_date, number_of_days]
@@ -2428,24 +2453,84 @@ app.post('/api/leave-requests', async (req, res) => {
       
       if (validationResult.rows.length > 0) {
         const validation = validationResult.rows[0].result;
+        console.log('✅ Validation result:', JSON.stringify(validation, null, 2));
+        
+        // Check if validation failed
         if (validation.valid === false) {
           const errors = Array.isArray(validation.errors) 
-            ? validation.errors.map(e => e.message || e).join('; ')
-            : validation.errors.message || 'Validation failed';
+            ? validation.errors.map(e => typeof e === 'object' ? e.message || JSON.stringify(e) : e).join('; ')
+            : (typeof validation.errors === 'object' ? validation.errors.message : validation.errors) || 'Validation failed';
+          console.log('❌ Validation failed:', errors);
           return res.status(400).json({ 
             error: `Leave request validation failed: ${errors}`,
             validation_errors: validation.errors
           });
         }
+        
+        validationPassed = true;
+        
+        // Check if auto-conversion to unpaid is needed
+        if (validation.auto_convert_to_unpaid === true && validation.suggested_leave_type_id) {
+          final_leave_type_id = validation.suggested_leave_type_id;
+          auto_converted = true;
+          conversion_warning = validation.warnings && validation.warnings.length > 0 
+            ? (Array.isArray(validation.warnings) ? validation.warnings[0] : validation.warnings)
+            : 'Annual casual leave limit exceeded. Converted to Unpaid Leave.';
+          console.log('⚠️ Auto-converting casual leave to unpaid leave:', {
+            original_leave_type_id: leave_type_id,
+            converted_to: final_leave_type_id,
+            reason: conversion_warning
+          });
+        }
+      } else {
+        console.error('❌ Validation function returned no results - REJECTING REQUEST');
+        return res.status(500).json({ 
+          error: 'Validation function returned no results. Please contact administrator.',
+          details: 'The leave validation system is not working properly.'
+        });
       }
     } catch (validationError) {
-      console.error('Validation error (continuing anyway):', validationError);
-      // Continue if validation function doesn't exist yet
+      console.error('❌ Validation error:', validationError);
+      console.error('Validation error message:', validationError.message);
+      console.error('Validation error code:', validationError.code);
+      
+      // Check if function doesn't exist
+      if (validationError.message && (
+        validationError.message.includes('does not exist') ||
+        validationError.message.includes('function hrms_data.validate_leave_request') ||
+        validationError.code === '42883' || // function does not exist
+        validationError.message.includes('relation') && validationError.message.includes('does not exist')
+      )) {
+        console.error('❌ CRITICAL: Validation function does not exist in database!');
+        return res.status(500).json({ 
+          error: 'Leave validation system is not configured. Please contact administrator.',
+          details: 'The validation function is missing. Please run UPDATE_LEAVE_VALIDATION_RULES.sql in the database.',
+          sql_file: 'orangehrm/database/UPDATE_LEAVE_VALIDATION_RULES.sql'
+        });
+      } else {
+        // If validation function exists but failed, reject the request
+        console.error('❌ Validation function exists but failed - REJECTING REQUEST');
+        return res.status(500).json({ 
+          error: `Validation failed: ${validationError.message}`,
+          details: 'Please ensure the validation function is properly installed and working.'
+        });
+      }
+    }
+    
+    // CRITICAL: Do not proceed if validation did not pass
+    if (!validationPassed) {
+      console.error('❌ Validation did not pass - REJECTING REQUEST');
+      return res.status(400).json({ 
+        error: 'Leave request validation failed. Request cannot be processed.',
+        details: 'The validation system did not approve this request.'
+      });
     }
     
     console.log('Inserting leave request with:', {
       employee_id,
-      leave_type_id,
+      leave_type_id: final_leave_type_id,
+      original_leave_type_id: auto_converted ? leave_type_id : null,
+      auto_converted,
       from_date,
       to_date,
       number_of_days,
@@ -2456,11 +2541,20 @@ app.post('/api/leave-requests', async (req, res) => {
       const result = await pool.query(
         `INSERT INTO hrms_data.leave_requests (employee_id, leave_type_id, from_date, to_date, number_of_days, comments, applied_by)
          VALUES ($1, $2, $3, $4, $5, $6, $1) RETURNING *`,
-        [employee_id, leave_type_id, from_date, to_date, number_of_days, comments || '']
+        [employee_id, final_leave_type_id, from_date, to_date, number_of_days, comments || '']
       );
       
+      const responseData = result.rows[0];
+      
+      // Add conversion info to response if applicable
+      if (auto_converted) {
+        responseData.auto_converted = true;
+        responseData.original_leave_type_id = leave_type_id;
+        responseData.conversion_warning = conversion_warning;
+      }
+      
       console.log('Leave request created successfully:', result.rows[0].id);
-      res.status(201).json(result.rows[0]);
+      res.status(201).json(responseData);
     } catch (insertError) {
       console.error('Error inserting leave request:', insertError);
       console.error('Insert error details:', insertError.message, insertError.stack);
@@ -2932,8 +3026,8 @@ app.get('/api/attendance-records', async (req, res) => {
     const { employee_id, date } = req.query;
     let query = `
       SELECT ar.*, e.first_name || ' ' || e.last_name as employee_name
-      FROM attendance_records ar
-      JOIN employees e ON ar.employee_id = e.id
+      FROM hrms_data.attendance_records ar
+      JOIN hrms_data.employees e ON ar.employee_id = e.id
       WHERE 1=1
     `;
     const params = [];
@@ -2961,7 +3055,7 @@ app.post('/api/attendance-records/punch-in', async (req, res) => {
   try {
     const { employee_id, punch_in_date, punch_in_time, punch_in_note } = req.body;
     const result = await pool.query(
-      `INSERT INTO attendance_records (employee_id, punch_in_date, punch_in_time, punch_in_note, status)
+      `INSERT INTO hrms_data.attendance_records (employee_id, punch_in_date, punch_in_time, punch_in_note, status)
        VALUES ($1, $2, $3, $4, 'punched_in') RETURNING *`,
       [employee_id, punch_in_date, punch_in_time, punch_in_note]
     );
@@ -2975,7 +3069,7 @@ app.post('/api/attendance-records/punch-in', async (req, res) => {
 app.put('/api/attendance-records/:id/punch-out', async (req, res) => {
   try {
     const { punch_out_date, punch_out_time, punch_out_note } = req.body;
-    const record = await pool.query('SELECT * FROM attendance_records WHERE id = $1', [req.params.id]);
+    const record = await pool.query('SELECT * FROM hrms_data.attendance_records WHERE id = $1', [req.params.id]);
     if (record.rows.length === 0) {
       return res.status(404).json({ error: 'Attendance record not found' });
     }
@@ -2985,7 +3079,7 @@ app.put('/api/attendance-records/:id/punch-out', async (req, res) => {
     const durationHours = (punchOut - punchIn) / (1000 * 60 * 60);
     
     const result = await pool.query(
-      `UPDATE attendance_records 
+      `UPDATE hrms_data.attendance_records 
        SET punch_out_date = $1, punch_out_time = $2, punch_out_note = $3, 
            duration_hours = $4, status = 'punched_out', updated_at = CURRENT_TIMESTAMP
        WHERE id = $5 RETURNING *`,
@@ -2998,10 +3092,23 @@ app.put('/api/attendance-records/:id/punch-out', async (req, res) => {
   }
 });
 
+app.delete('/api/attendance-records/:id', async (req, res) => {
+  try {
+    const result = await pool.query('DELETE FROM hrms_data.attendance_records WHERE id = $1 RETURNING *', [req.params.id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Attendance record not found' });
+    }
+    res.json({ message: 'Attendance record deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting attendance record:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Customers
 app.get('/api/customers', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM customers WHERE status = $1 ORDER BY name', ['active']);
+    const result = await pool.query('SELECT * FROM hrms_data.customers WHERE status = $1 ORDER BY name', ['active']);
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching customers:', error);
@@ -3013,7 +3120,7 @@ app.post('/api/customers', async (req, res) => {
   try {
     const { name, description } = req.body;
     const result = await pool.query(
-      'INSERT INTO customers (name, description) VALUES ($1, $2) RETURNING *',
+      'INSERT INTO hrms_data.customers (name, description) VALUES ($1, $2) RETURNING *',
       [name, description]
     );
     res.status(201).json(result.rows[0]);
@@ -3027,7 +3134,7 @@ app.put('/api/customers/:id', async (req, res) => {
   try {
     const { name, description, status } = req.body;
     const result = await pool.query(
-      'UPDATE customers SET name = $1, description = $2, status = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4 RETURNING *',
+      'UPDATE hrms_data.customers SET name = $1, description = $2, status = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4 RETURNING *',
       [name, description, status, req.params.id]
     );
     res.json(result.rows[0]);
@@ -3039,7 +3146,7 @@ app.put('/api/customers/:id', async (req, res) => {
 
 app.delete('/api/customers/:id', async (req, res) => {
   try {
-    await pool.query('UPDATE customers SET status = $1 WHERE id = $2', ['inactive', req.params.id]);
+    await pool.query('UPDATE hrms_data.customers SET status = $1 WHERE id = $2', ['inactive', req.params.id]);
     res.json({ success: true });
   } catch (error) {
     console.error('Error deleting customer:', error);
@@ -3051,11 +3158,10 @@ app.delete('/api/customers/:id', async (req, res) => {
 app.get('/api/projects', async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT p.*, c.name as customer_name, 
+      SELECT p.*, 
              e.first_name || ' ' || e.last_name as project_admin_name
-      FROM projects p
-      LEFT JOIN customers c ON p.customer_id = c.id
-      LEFT JOIN employees e ON p.project_admin_id = e.id
+      FROM hrms_data.projects p
+      LEFT JOIN hrms_data.employees e ON p.project_admin_id = e.id
       WHERE p.status = $1
       ORDER BY p.name
     `, ['active']);
@@ -3068,10 +3174,10 @@ app.get('/api/projects', async (req, res) => {
 
 app.post('/api/projects', async (req, res) => {
   try {
-    const { customer_id, name, description, project_admin_id } = req.body;
+    const { name, description, project_admin_id } = req.body;
     const result = await pool.query(
-      'INSERT INTO projects (customer_id, name, description, project_admin_id) VALUES ($1, $2, $3, $4) RETURNING *',
-      [customer_id, name, description, project_admin_id]
+      'INSERT INTO hrms_data.projects (name, description, project_admin_id) VALUES ($1, $2, $3) RETURNING *',
+      [name, description, project_admin_id || null]
     );
     res.status(201).json(result.rows[0]);
   } catch (error) {
@@ -3084,7 +3190,7 @@ app.put('/api/projects/:id', async (req, res) => {
   try {
     const { name, description, project_admin_id, status } = req.body;
     const result = await pool.query(
-      'UPDATE projects SET name = $1, description = $2, project_admin_id = $3, status = $4, updated_at = CURRENT_TIMESTAMP WHERE id = $5 RETURNING *',
+      'UPDATE hrms_data.projects SET name = $1, description = $2, project_admin_id = $3, status = $4, updated_at = CURRENT_TIMESTAMP WHERE id = $5 RETURNING *',
       [name, description, project_admin_id, status, req.params.id]
     );
     res.json(result.rows[0]);
@@ -3096,7 +3202,7 @@ app.put('/api/projects/:id', async (req, res) => {
 
 app.delete('/api/projects/:id', async (req, res) => {
   try {
-    await pool.query('UPDATE projects SET status = $1 WHERE id = $2', ['inactive', req.params.id]);
+    await pool.query('UPDATE hrms_data.projects SET status = $1 WHERE id = $2', ['inactive', req.params.id]);
     res.json({ success: true });
   } catch (error) {
     console.error('Error deleting project:', error);
@@ -3107,13 +3213,15 @@ app.delete('/api/projects/:id', async (req, res) => {
 // Timesheets
 app.get('/api/timesheets', async (req, res) => {
   try {
-    const { employee_id, status } = req.query;
+    const { employee_id, status, start_date, end_date } = req.query;
     let query = `
       SELECT t.*, e.first_name || ' ' || e.last_name as employee_name,
-             p.name as project_name
-      FROM timesheets t
-      JOIN employees e ON t.employee_id = e.id
-      LEFT JOIN projects p ON t.project_id = p.id
+             m.first_name || ' ' || m.last_name as submitted_to_name,
+             a.first_name || ' ' || a.last_name as approved_by_name
+      FROM hrms_data.timesheets t
+      JOIN hrms_data.employees e ON t.employee_id = e.id
+      LEFT JOIN hrms_data.employees m ON t.submitted_to = m.id
+      LEFT JOIN hrms_data.employees a ON t.approved_by = a.id
       WHERE 1=1
     `;
     const params = [];
@@ -3127,6 +3235,14 @@ app.get('/api/timesheets', async (req, res) => {
       query += ` AND t.status = $${paramCount++}`;
       params.push(status);
     }
+    if (start_date) {
+      query += ` AND t.start_date = $${paramCount++}`;
+      params.push(start_date);
+    }
+    if (end_date) {
+      query += ` AND t.end_date = $${paramCount++}`;
+      params.push(end_date);
+    }
     query += ' ORDER BY t.start_date DESC';
     
     const result = await pool.query(query, params);
@@ -3139,14 +3255,299 @@ app.get('/api/timesheets', async (req, res) => {
 
 app.post('/api/timesheets', async (req, res) => {
   try {
-    const { employee_id, project_id, activity_id, start_date, end_date } = req.body;
+    const { employee_id, start_date, end_date } = req.body;
+    
+    // First check if timesheet already exists
+    const existing = await pool.query(
+      `SELECT * FROM hrms_data.timesheets 
+       WHERE employee_id = $1 AND start_date = $2 AND end_date = $3`,
+      [employee_id, start_date, end_date]
+    );
+    
+    if (existing.rows.length > 0) {
+      return res.json(existing.rows[0]);
+    }
+    
+    // Create new timesheet
     const result = await pool.query(
-      'INSERT INTO timesheets (employee_id, project_id, activity_id, start_date, end_date) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [employee_id, project_id, activity_id, start_date, end_date]
+      `INSERT INTO hrms_data.timesheets (employee_id, start_date, end_date, status) 
+       VALUES ($1, $2, $3, 'draft') 
+       RETURNING *`,
+      [employee_id, start_date, end_date]
     );
     res.status(201).json(result.rows[0]);
   } catch (error) {
     console.error('Error creating timesheet:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get timesheet entries
+app.get('/api/timesheets/:id/entries', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT te.*, p.name as project_name, a.name as activity_name
+      FROM hrms_data.timesheet_entries te
+      LEFT JOIN hrms_data.projects p ON te.project_id = p.id
+      LEFT JOIN hrms_data.activities a ON te.activity_id = a.id
+      WHERE te.timesheet_id = $1
+      ORDER BY te.entry_date, p.name, a.name
+    `, [req.params.id]);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching timesheet entries:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Create or update timesheet entry
+app.post('/api/timesheets/:id/entries', async (req, res) => {
+  try {
+    const { project_id, activity_id, entry_date, hours, comments } = req.body;
+    
+    if (!project_id) {
+      return res.status(400).json({ error: 'project_id is required' });
+    }
+    if (!entry_date) {
+      return res.status(400).json({ error: 'entry_date is required' });
+    }
+    
+    // Validate and clamp hours to 0-24 range
+    let hoursValue = parseFloat(hours) || 0;
+    if (isNaN(hoursValue)) {
+      hoursValue = 0;
+    }
+    if (hoursValue < 0) {
+      hoursValue = 0;
+    }
+    if (hoursValue > 24) {
+      hoursValue = 24;
+    }
+    
+    // Check if entry already exists
+    const existing = await pool.query(
+      `SELECT * FROM hrms_data.timesheet_entries 
+       WHERE timesheet_id = $1 AND project_id = $2 
+       AND (activity_id = $3 OR (activity_id IS NULL AND $3 IS NULL))
+       AND entry_date = $4`,
+      [req.params.id, project_id, activity_id || null, entry_date]
+    );
+    
+    let result;
+    if (existing.rows.length > 0) {
+      // Update existing entry - but only if it wasn't just deleted
+      const existingEntry = existing.rows[0];
+      console.log('Updating existing entry:', existingEntry.id);
+      result = await pool.query(
+        `UPDATE hrms_data.timesheet_entries 
+         SET hours = $1, comments = $2, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $3
+         RETURNING *`,
+        [hoursValue, comments || null, existingEntry.id]
+      );
+    } else {
+      // Insert new entry - log this to track if entries are being recreated
+      console.log('Creating NEW entry:', {
+        timesheet_id: req.params.id,
+        project_id,
+        activity_id: activity_id || null,
+        entry_date,
+        hours: hoursValue
+      });
+      result = await pool.query(
+        `INSERT INTO hrms_data.timesheet_entries 
+         (timesheet_id, project_id, activity_id, entry_date, hours, comments) 
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING *`,
+        [req.params.id, project_id, activity_id || null, entry_date, hoursValue, comments || null]
+      );
+      console.log('New entry created with ID:', result.rows[0].id);
+    }
+    
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error saving timesheet entry:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Delete timesheet entry
+app.delete('/api/timesheet-entries/:id', async (req, res) => {
+  try {
+    const entryId = parseInt(req.params.id);
+    console.log('=== DELETE TIMESHEET ENTRY ===');
+    console.log('Entry ID:', entryId);
+    
+    if (isNaN(entryId)) {
+      return res.status(400).json({ error: 'Invalid entry ID' });
+    }
+    
+    // First check if entry exists
+    const checkResult = await pool.query(
+      'SELECT id, timesheet_id, project_id, activity_id, entry_date FROM hrms_data.timesheet_entries WHERE id = $1',
+      [entryId]
+    );
+    
+    if (checkResult.rows.length === 0) {
+      console.log('Entry not found:', entryId);
+      return res.status(404).json({ error: 'Entry not found' });
+    }
+    
+    const entry = checkResult.rows[0];
+    console.log('Entry found:', entry);
+    
+    // Delete the entry using explicit schema
+    const deleteResult = await pool.query(
+      'DELETE FROM hrms_data.timesheet_entries WHERE id = $1 RETURNING id, timesheet_id, project_id, entry_date',
+      [entryId]
+    );
+    
+    if (deleteResult.rowCount === 0) {
+      console.log('No rows deleted for entry:', entryId);
+      // Double check if it exists
+      const doubleCheck = await pool.query(
+        'SELECT id FROM hrms_data.timesheet_entries WHERE id = $1',
+        [entryId]
+      );
+      if (doubleCheck.rows.length === 0) {
+        console.log('Entry already deleted or never existed');
+        return res.json({ success: true, deletedId: entryId, message: 'Already deleted' });
+      }
+      return res.status(404).json({ error: 'Entry not found or could not be deleted' });
+    }
+    
+    const deletedEntry = deleteResult.rows[0];
+    console.log('Successfully deleted entry:', entryId);
+    console.log('Deleted entry details:', deletedEntry);
+    
+    // Verify deletion with multiple checks
+    const verifyResult = await pool.query(
+      'SELECT id FROM hrms_data.timesheet_entries WHERE id = $1',
+      [entryId]
+    );
+    
+    if (verifyResult.rows.length > 0) {
+      console.error('CRITICAL: Entry still exists after deletion!');
+      console.error('Entry ID:', entryId);
+      console.error('Verification query returned:', verifyResult.rows);
+      return res.status(500).json({ error: 'Entry deletion failed - entry still exists' });
+    }
+    
+    // Also verify by project_id and entry_date to ensure it's really gone
+    const verifyByProject = await pool.query(
+      'SELECT id FROM hrms_data.timesheet_entries WHERE timesheet_id = $1 AND project_id = $2 AND entry_date = $3',
+      [deletedEntry.timesheet_id, deletedEntry.project_id, deletedEntry.entry_date]
+    );
+    
+    console.log('Deletion verified - entry no longer exists');
+    console.log('Verification by project/date returned:', verifyByProject.rows.length, 'entries');
+    
+    res.json({ success: true, deletedId: entryId, deletedEntry: deletedEntry });
+  } catch (error) {
+    console.error('Error deleting timesheet entry:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Delete all entries for a project in a timesheet (bulk delete)
+// IMPORTANT: This route must be BEFORE other /api/timesheets/:id routes
+app.delete('/api/timesheets/:timesheetId/projects/:projectId/entries', async (req, res) => {
+  try {
+    const timesheetId = parseInt(req.params.timesheetId);
+    const projectId = parseInt(req.params.projectId);
+    const activityIdParam = req.query.activity_id;
+    const activityId = activityIdParam && activityIdParam !== 'null' && activityIdParam !== 'undefined' 
+      ? parseInt(String(activityIdParam)) 
+      : null;
+    
+    console.log('=== BULK DELETE PROJECT ENTRIES ===');
+    console.log('Timesheet ID:', timesheetId);
+    console.log('Project ID:', projectId);
+    console.log('Activity ID param:', activityIdParam);
+    console.log('Activity ID parsed:', activityId);
+    
+    if (isNaN(timesheetId) || isNaN(projectId)) {
+      return res.status(400).json({ error: 'Invalid timesheet or project ID' });
+    }
+    
+    let deleteQuery;
+    let params;
+    
+    if (activityId !== null && activityId !== undefined && !isNaN(activityId)) {
+      deleteQuery = 'DELETE FROM hrms_data.timesheet_entries WHERE timesheet_id = $1 AND project_id = $2 AND activity_id = $3 RETURNING id';
+      params = [timesheetId, projectId, activityId];
+      console.log('Deleting with activity_id:', activityId);
+    } else {
+      deleteQuery = 'DELETE FROM hrms_data.timesheet_entries WHERE timesheet_id = $1 AND project_id = $2 AND activity_id IS NULL RETURNING id';
+      params = [timesheetId, projectId];
+      console.log('Deleting without activity_id (NULL)');
+    }
+    
+    const deleteResult = await pool.query(deleteQuery, params);
+    console.log(`Deleted ${deleteResult.rowCount} entries`);
+    
+    if (deleteResult.rowCount === 0) {
+      console.log('No entries found to delete');
+      return res.json({ success: true, deletedCount: 0, message: 'No entries found' });
+    }
+    
+    res.json({ success: true, deletedCount: deleteResult.rowCount });
+  } catch (error) {
+    console.error('Error bulk deleting entries:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Submit timesheet to manager
+app.put('/api/timesheets/:id/submit', async (req, res) => {
+  try {
+    const { submitted_to } = req.body;
+    const result = await pool.query(
+      `UPDATE hrms_data.timesheets 
+       SET status = 'submitted', submitted_at = CURRENT_TIMESTAMP, submitted_to = $1, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2 AND status = 'draft'
+       RETURNING *`,
+      [submitted_to, req.params.id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(400).json({ error: 'Timesheet not found or already submitted' });
+    }
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error submitting timesheet:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get activities for a project
+app.get('/api/projects/:id/activities', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM hrms_data.activities WHERE project_id = $1 AND status = $2 ORDER BY name',
+      [req.params.id, 'active']
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching activities:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get all activities
+app.get('/api/activities', async (req, res) => {
+  try {
+    const { project_id } = req.query;
+    let query = 'SELECT * FROM hrms_data.activities WHERE status = $1';
+    const params = ['active'];
+    if (project_id) {
+      query += ' AND project_id = $2';
+      params.push(project_id);
+    }
+    query += ' ORDER BY name';
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching activities:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -4330,6 +4731,264 @@ app.delete('/api/users/:id', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+// -----------------------------------------------------------------------------
+// KYC / Profile helpers
+// -----------------------------------------------------------------------------
+const uploadRoot = path.join(__dirname, 'uploads');
+const kycUploadDir = path.join(uploadRoot, 'kyc');
+const profileUploadDir = path.join(uploadRoot, 'profile');
+[uploadRoot, kycUploadDir, profileUploadDir].forEach((dir) => {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+});
+
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const isProfile = req.path.includes('/employee/profile');
+    cb(null, isProfile ? profileUploadDir : kycUploadDir);
+  },
+  filename: function (req, file, cb) {
+    const unique = Date.now() + '-' + Math.round(Math.random() * 1e6);
+    const safeName = file.originalname.replace(/\s+/g, '-');
+    cb(null, `${unique}-${safeName}`);
+  }
+});
+
+const allowedMime = ['application/pdf', 'image/jpeg', 'image/png'];
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  fileFilter: (req, file, cb) => {
+    if (!allowedMime.includes(file.mimetype)) {
+      return cb(new Error('Only PDF, JPG, PNG files are allowed'));
+    }
+    cb(null, true);
+  }
+});
+
+async function ensureKycTable() {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS hrms_data.kyc_documents (
+        id SERIAL PRIMARY KEY,
+        employee_id INTEGER NOT NULL,
+        doc_type VARCHAR(20) NOT NULL,
+        file_name TEXT,
+        file_path TEXT,
+        status VARCHAR(30) DEFAULT 'Pending',
+        uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        masked_number TEXT,
+        UNIQUE(employee_id, doc_type)
+      );
+    `);
+  } catch (err) {
+    console.error('Error ensuring kyc_documents table:', err);
+  }
+}
+ensureKycTable();
+
+function computeOverallStatus(docs) {
+  const required = ['aadhaar', 'pan', 'bank'];
+  const missing = required.some((k) => !docs[k]?.file_name);
+  if (missing) return 'Pending';
+  if (required.some((k) => docs[k]?.status === 'Rejected')) return 'Re-upload Required';
+  if (required.some((k) => docs[k]?.status === 'Under Review')) return 'Under Review';
+  return 'Approved';
+}
+
+// GET profile
+app.get('/api/employee/profile', async (req, res) => {
+  const employeeId = parseInt(req.query.employee_id || '1', 10);
+  try {
+    const result = await pool.query(
+      `SELECT id, first_name, last_name, email, phone_number, department, job_title, hire_date, location, avatar_url
+       FROM hrms_data.employees
+       WHERE id = $1
+       LIMIT 1`,
+      [employeeId]
+    );
+    if (result.rows.length === 0) {
+      // Return empty (non-dummy) profile; frontend will render blanks/placeholders
+      return res.json({
+        id: employeeId,
+        name: '',
+        title: '',
+        email: '',
+        department: '',
+        phone: '',
+        doj: '',
+        location: '',
+        avatarUrl: '/api/employee/profile/avatar-placeholder'
+      });
+    }
+    const row = result.rows[0];
+    res.json({
+      id: row.id,
+      name: `${row.first_name || ''} ${row.last_name || ''}`.trim(),
+      title: row.job_title || '',
+      email: row.email || '',
+      department: row.department || '',
+      phone: row.phone_number || '',
+      doj: row.hire_date ? new Date(row.hire_date).toISOString() : '',
+      location: row.location || '',
+      avatarUrl: row.avatar_url || '/api/employee/profile/avatar-placeholder'
+    });
+  } catch (err) {
+    console.error('Error fetching profile:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Static placeholder
+app.get('/api/employee/profile/avatar-placeholder', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'placeholder.png'), (err) => {
+    if (err) res.status(204).end();
+  });
+});
+
+// PUT profile (supports avatar upload)
+app.put('/api/employee/profile', upload.single('avatar'), async (req, res) => {
+  const employeeId = parseInt(req.query.employee_id || '1', 10);
+  const { name, title, email, department, phone, doj, location } = req.body || {};
+  const avatarUrl = req.file ? `/uploads/profile/${req.file.filename}` : undefined;
+  try {
+    await pool.query(`ALTER TABLE hrms_data.employees
+      ADD COLUMN IF NOT EXISTS avatar_url TEXT,
+      ADD COLUMN IF NOT EXISTS job_title TEXT,
+      ADD COLUMN IF NOT EXISTS phone_number TEXT,
+      ADD COLUMN IF NOT EXISTS department TEXT,
+      ADD COLUMN IF NOT EXISTS location TEXT;`);
+
+    const parts = (name || '').trim().split(' ');
+    const first = parts.shift() || null;
+    const last = parts.join(' ') || null;
+
+    const fields = [];
+    const values = [];
+    let idx = 1;
+    if (first) { fields.push(`first_name = $${idx++}`); values.push(first); }
+    if (last) { fields.push(`last_name = $${idx++}`); values.push(last); }
+    if (title) { fields.push(`job_title = $${idx++}`); values.push(title); }
+    if (email) { fields.push(`email = $${idx++}`); values.push(email); }
+    if (department) { fields.push(`department = $${idx++}`); values.push(department); }
+    if (phone) { fields.push(`phone_number = $${idx++}`); values.push(phone); }
+    if (location) { fields.push(`location = $${idx++}`); values.push(location); }
+    if (avatarUrl) { fields.push(`avatar_url = $${idx++}`); values.push(avatarUrl); }
+    if (doj) { fields.push(`hire_date = $${idx++}`); values.push(new Date(doj)); }
+
+    values.push(employeeId);
+    if (fields.length > 0) {
+      const q = `UPDATE hrms_data.employees SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = $${idx} RETURNING *`;
+      const result = await pool.query(q, values);
+      return res.json({ success: true, employee: result.rows[0] });
+    } else {
+      // Nothing to update; just return current row (or empty)
+      const current = await pool.query(
+        `SELECT * FROM hrms_data.employees WHERE id = $1 LIMIT 1`,
+        [employeeId]
+      );
+      return res.json({ success: true, employee: current.rows[0] || null });
+    }
+  } catch (err) {
+    console.error('Error updating profile:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Upload KYC document
+app.post('/api/employee/kyc/upload', upload.single('file'), async (req, res) => {
+  const employeeId = parseInt(req.body.employee_id || req.query.employee_id || '1', 10);
+  const docType = (req.body.documentType || '').toLowerCase();
+  if (!['aadhaar', 'pan', 'bank'].includes(docType)) {
+    return res.status(400).json({ error: 'Invalid document type' });
+  }
+  if (!req.file) {
+    return res.status(400).json({ error: 'File is required' });
+  }
+  try {
+    await ensureKycTable();
+    const filePath = `/uploads/kyc/${req.file.filename}`;
+    await pool.query(
+      `INSERT INTO hrms_data.kyc_documents (employee_id, doc_type, file_name, file_path, status, uploaded_at)
+       VALUES ($1, $2, $3, $4, 'Pending', CURRENT_TIMESTAMP)
+       ON CONFLICT (employee_id, doc_type)
+       DO UPDATE SET file_name = EXCLUDED.file_name, file_path = EXCLUDED.file_path, status = 'Pending', uploaded_at = CURRENT_TIMESTAMP`,
+      [employeeId, docType, req.file.originalname, filePath]
+    );
+    res.json({ success: true, filePath });
+  } catch (err) {
+    console.error('Error uploading KYC:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get KYC status
+app.get('/api/employee/kyc/status', async (req, res) => {
+  const employeeId = parseInt(req.query.employee_id || '1', 10);
+  try {
+    await ensureKycTable();
+    const result = await pool.query(
+      `SELECT doc_type, file_name, file_path, status, uploaded_at, masked_number
+       FROM hrms_data.kyc_documents
+       WHERE employee_id = $1`,
+      [employeeId]
+    );
+    const docs = {
+      aadhaar: { file_name: null, uploaded_at: null, status: 'Pending', url: null, masked_number: null },
+      pan: { file_name: null, uploaded_at: null, status: 'Pending', url: null, masked_number: null },
+      bank: { file_name: null, uploaded_at: null, status: 'Pending', url: null, masked_number: null },
+    };
+    result.rows.forEach((row) => {
+      const key = row.doc_type;
+      if (docs[key] !== undefined) {
+        docs[key] = {
+          file_name: row.file_name,
+          uploaded_at: row.uploaded_at,
+          status: row.status,
+          url: row.file_path,
+          masked_number: row.masked_number
+        };
+      }
+    });
+    const overallStatus = computeOverallStatus(docs);
+    res.json({ documents: docs, overallStatus });
+  } catch (err) {
+    console.error('Error fetching KYC status:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update KYC status (e.g., Under Review)
+app.put('/api/employee/kyc/status', async (req, res) => {
+  const employeeId = parseInt(req.body?.employee_id || req.query.employee_id || '1', 10);
+  const status = req.body?.status;
+  if (!status) return res.status(400).json({ error: 'Status is required' });
+  try {
+    await ensureKycTable();
+    await pool.query(
+      `UPDATE hrms_data.kyc_documents
+       SET status = $1
+       WHERE employee_id = $2`,
+      [status, employeeId]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error updating KYC status:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Serve uploaded files statically
+app.use('/uploads', express.static(uploadRoot));
+
+// Serve images from web/images directory
+const imagesPath = path.join(__dirname, '../../web/images');
+if (fs.existsSync(imagesPath)) {
+  app.use('/images', express.static(imagesPath));
+  console.log('📸 Serving images from:', imagesPath);
+}
 
 // Serve frontend static files (if built)
 // IMPORTANT: This must come AFTER all API routes

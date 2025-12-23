@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { apiService } from '../services/api';
 
 const COLORS = {
@@ -11,7 +12,7 @@ const COLORS = {
   text: '#333333',
   textLight: '#666666',
   border: '#e0e0e0',
-  accent: '#28a745',
+  accent: '#78176b',
 };
 
 const TYPOGRAPHY = {
@@ -104,7 +105,9 @@ const defaultForm: EmployeeFormState = {
 
 const Employees: React.FC = () => {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'configuration' | 'list' | 'add' | 'reports'>('list');
+  const { isAdmin } = useAuth();
+  const isAdminUser = isAdmin();
+  const [activeTab, setActiveTab] = useState<'configuration' | 'list' | 'add' | 'reports'>('add');
   const [filters, setFilters] = useState<EmployeeFilters>({ ...defaultFilters });
   const [employees, setEmployees] = useState<EmployeeRecord[]>([]);
   const [jobTitleOptions, setJobTitleOptions] = useState<string[]>([]);
@@ -119,6 +122,25 @@ const Employees: React.FC = () => {
     void loadJobTitles();
     void fetchEmployees(defaultFilters);
   }, []);
+
+  const tabs = useMemo(() => {
+    const base = [
+      { key: 'configuration', label: 'Configuration', menuKey: 'configMenu', items: configurationOptions },
+      { key: 'list', label: 'Employee List' },
+      { key: 'add', label: 'Add Employee' },
+      { key: 'reports', label: 'Reports', menuKey: 'reportsMenu', items: ['PIM Reports', 'Employee Reports'] },
+    ] as const;
+    return isAdminUser ? base : base.filter(t => t.key === 'add');
+  }, [isAdminUser]);
+
+  useEffect(() => {
+    if (!isAdminUser && activeTab !== 'add') {
+      setActiveTab('add');
+    }
+    if (isAdminUser && !tabs.some(t => t.key === activeTab)) {
+      setActiveTab('add');
+    }
+  }, [isAdminUser, activeTab, tabs]);
 
   const formattedEmployees = useMemo(
     () =>
@@ -264,6 +286,96 @@ const Employees: React.FC = () => {
         boxShadow: '0 2px 6px rgba(0,0,0,0.05)',
       }}
     >
+      {(() => {
+        const { isAdmin } = useAuth();
+        const tabDefs = [
+          { key: 'configuration', label: 'Configuration', menuKey: 'configMenu', items: configurationOptions },
+          { key: 'list', label: 'Employee List' },
+          { key: 'add', label: 'Add Employee' },
+          { key: 'reports', label: 'Reports', menuKey: 'reportsMenu', items: ['PIM Reports', 'Employee Reports'] },
+        ] as const;
+        const filteredTabs = isAdmin ? tabDefs : tabDefs.filter(t => t.key === 'add');
+        return (
+          <div style={{ display: 'flex', gap: '12px', marginBottom: '24px', flexWrap: 'wrap' }}>
+            {filteredTabs.map((tab) => {
+              const isActive = activeTab === tab.key;
+              const isMenuOpen = activeTab === tab.key && !!tab.menuKey;
+              return (
+                <div key={tab.key} style={{ position: 'relative' }}>
+                  <button
+                    onClick={() => {
+                      if (tab.menuKey) {
+                        setActiveTab(isActive ? 'list' : tab.key);
+                      } else {
+                        setActiveTab(tab.key);
+                      }
+                    }}
+                    style={{
+                      padding: '10px 18px',
+                      borderRadius: '24px',
+                      border: 'none',
+                      backgroundColor: isActive ? COLORS.primary : '#f5f5f5',
+                      color: isActive ? COLORS.white : COLORS.textLight,
+                      fontFamily: TYPOGRAPHY.fontFamily,
+                      fontSize: TYPOGRAPHY.textImportant.fontSize,
+                      cursor: 'pointer',
+                      boxShadow: isActive ? '0 2px 6px rgba(0,0,0,0.15)' : 'none',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    {tab.label}
+                    {tab.menuKey && <span style={{ fontSize: '10px' }}>▼</span>}
+                  </button>
+                  {isMenuOpen && tab.items && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: '44px',
+                        left: 0,
+                        backgroundColor: COLORS.white,
+                        border: `1px solid ${COLORS.border}`,
+                        borderRadius: '8px',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                        zIndex: 10,
+                        minWidth: '180px',
+                      }}
+                    >
+                      {tab.items.map((item) => (
+                        <div
+                          key={item}
+                          onClick={() => {
+                            if (tab.key === 'reports') {
+                              if (item === 'PIM Reports') {
+                                navigate('/reports/pim');
+                              } else if (item === 'Employee Reports') {
+                                navigate('/reports/employee');
+                              }
+                            }
+                            setActiveTab('list');
+                          }}
+                          style={{
+                            padding: '10px 12px',
+                            cursor: 'pointer',
+                            fontFamily: TYPOGRAPHY.fontFamily,
+                            fontSize: TYPOGRAPHY.text.fontSize,
+                            color: COLORS.text,
+                          }}
+                          onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.backgroundColor = COLORS.lightBg; }}
+                          onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.backgroundColor = COLORS.white; }}
+                        >
+                          {item}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
         <h3 style={{ fontFamily: TYPOGRAPHY.fontFamily, fontSize: TYPOGRAPHY.textImportant.fontSize, fontWeight: 600, margin: 0, color: COLORS.text }}>
           Employee Information
@@ -1404,22 +1516,15 @@ const Employees: React.FC = () => {
       </h1>
 
       <div style={{ display: 'flex', gap: '12px', marginBottom: '24px', flexWrap: 'wrap' }}>
-        {([
-          { key: 'configuration', label: 'Configuration', menuKey: 'configMenu', items: configurationOptions },
-          { key: 'list', label: 'Employee List' },
-          { key: 'add', label: 'Add Employee' },
-          { key: 'reports', label: 'Reports', menuKey: 'reportsMenu', items: ['PIM Reports', 'Employee Reports'] },
-        ] as const).map((tab) => {
+        {tabs.map((tab) => {
           const isActive = activeTab === tab.key;
           const isMenuOpen = activeTab === tab.key && !!tab.menuKey;
           return (
             <div key={tab.key} style={{ position: 'relative' }}>
               <button
                 onClick={() => {
-                  // If tab has a menu, toggle it. Otherwise just set active tab
                   if (tab.menuKey) {
-                    // Toggle: if already active, close it; if not active, open it
-                    setActiveTab(isActive ? 'list' : tab.key);
+                    setActiveTab(isActive ? 'add' : tab.key);
                   } else {
                     setActiveTab(tab.key);
                   }
@@ -1476,7 +1581,7 @@ const Employees: React.FC = () => {
                             navigate('/reports/employee');
                           }
                           // Close the dropdown after navigation
-                          setActiveTab('list');
+                          setActiveTab('add');
                         } else {
                           setActiveTab(tab.key);
                         }

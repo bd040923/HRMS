@@ -16,7 +16,7 @@
  */
 
 import React, { useEffect, useState, useRef, Suspense } from 'react';
-import { Routes, Route, Link, useNavigate } from 'react-router-dom';
+import { Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { SidebarProvider, useSidebar } from './context/SidebarContext';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -1489,102 +1489,36 @@ const ProfileDropdown: React.FC<{ isOpen: boolean; onClose: () => void; onLogout
         padding: '8px 0'
       }}
     >
+      {/* Status (Online) */}
       <div
         style={{
           padding: '10px 16px',
           fontSize: TYPOGRAPHY.textImportant.fontSize,
           fontFamily: TYPOGRAPHY.fontFamily,
           color: COLORS.text,
-          cursor: 'pointer',
-          transition: 'background-color 0.2s'
-        }}
-        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = COLORS.lightBg}
-        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-        onClick={onClose}
-      >
-        Help
-      </div>
-      <div
-        style={{
-          padding: '10px 16px',
-          fontSize: TYPOGRAPHY.textImportant.fontSize,
-          fontFamily: TYPOGRAPHY.fontFamily,
-          color: COLORS.text,
-          cursor: 'pointer',
-          transition: 'background-color 0.2s',
+          cursor: 'default',
           display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
+          alignItems: 'center',
+          gap: '8px'
         }}
-        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = COLORS.lightBg}
-        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-        onClick={onClose}
       >
-        <span>Shortcuts</span>
-        <span style={{ fontWeight: 600, color: COLORS.textLight }}>CTRL+K</span>
+        <div style={{
+          width: '8px',
+          height: '8px',
+          borderRadius: '50%',
+          backgroundColor: COLORS.primary
+        }} />
+        <span>Online</span>
       </div>
+      
+      {/* Separator */}
       <div style={{
         height: '1px',
         backgroundColor: COLORS.border,
         margin: '4px 0'
       }} />
-      <div
-        style={{
-          padding: '10px 16px',
-          fontSize: TYPOGRAPHY.textImportant.fontSize,
-          fontFamily: TYPOGRAPHY.fontFamily,
-          color: COLORS.text,
-          cursor: 'pointer',
-          transition: 'background-color 0.2s',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}
-        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = COLORS.lightBg}
-        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-        onClick={onClose}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div style={{
-            width: '8px',
-            height: '8px',
-            borderRadius: '50%',
-            backgroundColor: '#28a745'
-          }} />
-          <span>Online</span>
-        </div>
-        <ChevronRightIcon />
-      </div>
-      <div
-        style={{
-          padding: '10px 16px',
-          fontSize: TYPOGRAPHY.textImportant.fontSize,
-          fontFamily: TYPOGRAPHY.fontFamily,
-          color: COLORS.text,
-          cursor: 'pointer',
-          transition: 'background-color 0.2s'
-        }}
-        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = COLORS.lightBg}
-        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-        onClick={onClose}
-      >
-        My Preferences
-      </div>
-      <div
-        style={{
-          padding: '10px 16px',
-          fontSize: TYPOGRAPHY.textImportant.fontSize,
-          fontFamily: TYPOGRAPHY.fontFamily,
-          color: COLORS.text,
-          cursor: 'pointer',
-          transition: 'background-color 0.2s'
-        }}
-        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = COLORS.lightBg}
-        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-        onClick={onClose}
-      >
-        My databases
-      </div>
+      
+      {/* Logout */}
       <div
         style={{
           padding: '10px 16px',
@@ -1607,11 +1541,48 @@ const ProfileDropdown: React.FC<{ isOpen: boolean; onClose: () => void; onLogout
   );
 };
 
+// Helper function to get page title from route
+const getPageTitle = (pathname: string): string => {
+  const routeMap: { [key: string]: string } = {
+    '/dashboard': 'Dashboard',
+    '/leave': 'Leave',
+    '/time': 'Time',
+    '/my-info': 'My Info',
+    '/employees': 'Employees',
+    '/departments': 'Departments',
+    '/projects': 'Projects',
+    '/attendance': 'Attendance',
+    '/payroll': 'Payroll',
+    '/expenses': 'Expenses',
+    '/recruitment': 'Recruitment',
+    '/performance': 'Performance',
+    '/training': 'Training',
+    '/reports': 'Reports',
+    '/admin': 'Admin',
+  };
+  
+  // Check for exact matches first
+  if (routeMap[pathname]) {
+    return routeMap[pathname];
+  }
+  
+  // Check for partial matches (e.g., /leave/apply, /admin/job-titles)
+  for (const [route, title] of Object.entries(routeMap)) {
+    if (pathname.startsWith(route)) {
+      return title;
+    }
+  }
+  
+  return 'Dashboard'; // Default
+};
+
 // Main App Component
 const App: React.FC = () => {
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const { isAuthenticated, user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const pageTitle = getPageTitle(location.pathname);
 
   useEffect(() => {
     console.log('🎉 App component mounted!');
@@ -1671,56 +1642,83 @@ const App: React.FC = () => {
         display: 'flex', 
         flexDirection: 'column' 
       }}>
-      {/* Navigation Bar */}
-      <nav style={{
+      {/* Navigation Bar - Reference Design: Logo on left, Colored banner on right */}
+      <div style={{
+        display: 'flex',
         backgroundColor: COLORS.white,
-        padding: '12px 24px',
         boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
         marginBottom: '0',
-        borderBottom: `2px solid ${COLORS.primary}`
       }}>
+        {/* Logo Section - Left side with white background */}
         <div style={{
+          backgroundColor: COLORS.white,
+          padding: '16px 24px',
           display: 'flex',
-          justifyContent: 'space-between',
           alignItems: 'center',
-          maxWidth: '1400px',
-          margin: '0 auto'
+          minWidth: '200px',
         }}>
           <Link 
-            to="/" 
+            to="/dashboard" 
             style={{
               display: 'flex',
               alignItems: 'center',
               textDecoration: 'none',
-              gap: '12px'
             }}
           >
-            <span style={{
-              color: COLORS.primary,
-              fontSize: '1.5rem',
-              fontFamily: TYPOGRAPHY.fontFamily,
-              fontWeight: 600,
-              letterSpacing: '0.5px'
-            }}>
-              {APP_NAME}
-            </span>
+            <img
+              src="/images/arithwise_logo.png"
+              alt="arithwise_hrms"
+              style={{ 
+                height: '40px', 
+                width: 'auto', 
+                maxWidth: '180px',
+                display: 'block',
+                objectFit: 'contain'
+              }}
+              onError={(e) => {
+                const target = e.currentTarget;
+                target.style.display = 'none';
+                // Show fallback text
+                const parent = target.parentElement;
+                if (parent && !parent.querySelector('span')) {
+                  const fallback = document.createElement('span');
+                  fallback.textContent = 'arithwise_hrms';
+                  fallback.style.color = COLORS.primary;
+                  fallback.style.fontSize = '1.25rem';
+                  fallback.style.fontFamily = TYPOGRAPHY.fontFamily;
+                  fallback.style.fontWeight = '600';
+                  parent.appendChild(fallback);
+                }
+              }}
+            />
           </Link>
+        </div>
+        
+        {/* Colored Banner Section - Right side with page title */}
+        <div style={{
+          flex: 1,
+          backgroundColor: COLORS.primary,
+          padding: '16px 24px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          borderTopLeftRadius: '8px',
+        }}>
+          <h2 style={{
+            margin: 0,
+            color: COLORS.white,
+            fontSize: '1.25rem',
+            fontFamily: TYPOGRAPHY.fontFamily,
+            fontWeight: 500,
+          }}>
+            {pageTitle}
+          </h2>
           
           <div style={{ 
             display: 'flex', 
             alignItems: 'center', 
             gap: '20px' 
           }}>
-            {/* Company Name */}
-            <div style={{
-              fontSize: TYPOGRAPHY.textImportant.fontSize,
-              fontFamily: TYPOGRAPHY.fontFamily,
-              fontWeight: 500,
-              color: COLORS.text
-            }}>
-              {APP_NAME}
-            </div>
-
             {/* Profile Picture with Dropdown */}
             <div style={{
               position: 'relative',
@@ -1736,18 +1734,18 @@ const App: React.FC = () => {
                   borderRadius: '6px',
                   transition: 'background-color 0.2s'
                 }}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = COLORS.lightBg}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'}
                 onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
               >
                 <div style={{
                   width: '36px',
                   height: '36px',
                   borderRadius: '50%',
-                  backgroundColor: COLORS.primary,
+                  backgroundColor: COLORS.white,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: COLORS.white,
+                  color: COLORS.primary,
                   fontSize: '16px',
                   fontWeight: 600,
                   fontFamily: TYPOGRAPHY.fontFamily,
@@ -1761,11 +1759,13 @@ const App: React.FC = () => {
                     width: '12px',
                     height: '12px',
                     borderRadius: '50%',
-                    backgroundColor: '#28a745',
+                    backgroundColor: COLORS.primary,
                     border: `2px solid ${COLORS.white}`
                   }} />
                 </div>
-                <ChevronDownIcon />
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M6 9L12 15L18 9" stroke={COLORS.white} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
               </div>
               <ProfileDropdown 
                 isOpen={profileDropdownOpen} 
@@ -1775,7 +1775,7 @@ const App: React.FC = () => {
             </div>
           </div>
         </div>
-      </nav>
+      </div>
 
       {/* Main Content */}
       <Routes>
@@ -1787,7 +1787,7 @@ const App: React.FC = () => {
         <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
         <Route path="/about" element={<ProtectedRoute><About /></ProtectedRoute>} />
         
-        <Route path="/employees" element={<ProtectedRoute requiredPermission="view_employees"><Employees /></ProtectedRoute>} />
+        <Route path="/employees" element={<ProtectedRoute requiredPermission="manage_users"><Employees /></ProtectedRoute>} />
         <Route path="/departments" element={<ProtectedRoute requiredPermission="view_departments"><Departments /></ProtectedRoute>} />
         <Route path="/projects" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
         <Route path="/calendar" element={<ProtectedRoute><Calendar /></ProtectedRoute>} />

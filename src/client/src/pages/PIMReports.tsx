@@ -15,7 +15,7 @@ const COLORS = {
   text: '#333333',
   textLight: '#666666',
   border: '#e0e0e0',
-  success: '#28a745',
+  success: '#78176b',
   danger: '#dc3545',
 };
 

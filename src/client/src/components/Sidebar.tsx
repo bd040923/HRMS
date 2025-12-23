@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useSidebar } from '../context/SidebarContext';
+import { useAuth } from '../context/AuthContext';
 
 const COLORS = {
   primary: '#78176b',
@@ -32,6 +33,7 @@ const Sidebar: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { collapsed, setCollapsed } = useSidebar();
+  const { isAdmin } = useAuth();
   const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   
@@ -41,36 +43,16 @@ const Sidebar: React.FC = () => {
   }, [setCollapsed]);
 
   const menuItems: SidebarItem[] = [
-    { name: 'Admin', path: '/admin/users', icon: '👥' },
-    { name: 'PIM', path: '/employees', icon: '👤' },
+    ...(isAdmin() ? [{ name: 'Admin', path: '/admin/users', icon: '👥' }] : []),
+    ...(isAdmin() ? [{ name: 'PIM', path: '/employees', icon: '👤' }] : []),
     { 
       name: 'Leave', 
       path: '/leave', 
-      icon: '📋',
-      submenu: [
-        { name: 'Apply Leave', path: '/leave' },
-        { name: 'My Leave', path: '/leave' },
-        { name: 'Leave Reports', path: '/leave/reports' },
-      ]
+      icon: '📋'
     },
     { name: 'Time', path: '/attendance', icon: '⏰' },
     { name: 'Recruitment', path: '/recruitment', icon: '🔍' },
     { name: 'My Info', path: '/my-info', icon: '👤' },
-    { name: 'Performance', path: '/performance', icon: '⭐' },
-    { name: 'Dashboard', path: '/dashboard', icon: '🏠' },
-    { name: 'Directory', path: '/directory', icon: '📂' },
-    { name: 'Maintenance', path: '/maintenance', icon: '🔧' },
-    { name: 'Claim', path: '/expenses', icon: '💰' },
-    { name: 'Buzz', path: '/buzz', icon: '💬' },
-    { 
-      name: 'Reports', 
-      path: '/reports', 
-      icon: '📊',
-      submenu: [
-        { name: 'PIM Reports', path: '/reports/pim' },
-        { name: 'Employee Reports', path: '/reports/employee' },
-      ]
-    },
   ];
 
   const isActive = (path: string) => {
@@ -119,7 +101,7 @@ const Sidebar: React.FC = () => {
         {!collapsed && (
           <Link to="/dashboard" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center' }}>
             <img 
-              src="../images/arithwise logo.webp"
+              src="/images/arithwise_logo.png"
               alt="arithwise_hrms" 
               style={{ 
                 height: '40px', 
@@ -128,7 +110,6 @@ const Sidebar: React.FC = () => {
                 objectFit: 'contain'
               }}
               onError={(e) => {
-                // Fallback to text if image doesn't load
                 const target = e.target as HTMLImageElement;
                 target.style.display = 'none';
                 const parent = target.parentElement;
@@ -208,10 +189,17 @@ const Sidebar: React.FC = () => {
         padding: '8px 0',
       }}>
         {menuItems
-          .filter(item => 
-            searchQuery === '' || 
-            item.name.toLowerCase().includes(searchQuery.toLowerCase())
-          )
+          .filter(item => {
+            // Filter by search query
+            if (searchQuery !== '' && !item.name.toLowerCase().includes(searchQuery.toLowerCase())) {
+              return false;
+            }
+            // Hide Recruitment for non-admin users
+            if (item.name === 'Recruitment' && !isAdmin()) {
+              return false;
+            }
+            return true;
+          })
           .map((item) => {
           const active = isActive(item.path);
           const hasSubmenu = item.submenu && item.submenu.length > 0;

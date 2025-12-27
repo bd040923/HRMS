@@ -113,3 +113,5 @@ To apply these rules, run:
 - Auto-conversion only works if an "Unpaid Leave" or "LWP" leave type exists in the system
 - Continuous leave check applies to all leave types, not just Casual Leave
 
+
+

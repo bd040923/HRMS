@@ -130,3 +130,5 @@ The Organization General Information page is accessible at:
 - The table uses an `updated_at` trigger to automatically update the timestamp on changes
 - All fields except `name` are optional
 
+
+

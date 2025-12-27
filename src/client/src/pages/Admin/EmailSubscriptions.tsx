@@ -13,7 +13,7 @@ const COLORS = {
   text: '#333333',
   textLight: '#666666',
   border: '#e0e0e0',
-  lightBg: '#faf3ff',
+  lightBg: '#f9f9f9',
 };
 
 const TYPOGRAPHY = {
@@ -151,4 +151,6 @@ const EmailSubscriptions: React.FC = () => {
 };
 
 export default EmailSubscriptions;
+
+
 

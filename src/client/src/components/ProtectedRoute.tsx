@@ -41,37 +41,13 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   }
 
   if (requiredRole && user?.role !== requiredRole && user?.role !== 'admin') {
-    return (
-      <div style={{
-        padding: '40px',
-        textAlign: 'center',
-        fontFamily: "'Segoe UI', Arial, sans-serif"
-      }}>
-        <h1 style={{ color: '#dc3545', fontSize: '2rem', fontWeight: 500 }}>
-          Access Denied
-        </h1>
-        <p style={{ fontSize: '16px', color: '#666', marginTop: '16px' }}>
-          You don't have permission to access this page.
-        </p>
-      </div>
-    );
+    // Redirect non-admin users to dashboard instead of showing Access Denied
+    return <Navigate to="/dashboard" replace />;
   }
 
   if (requiredPermission && !hasPermission(requiredPermission)) {
-    return (
-      <div style={{
-        padding: '40px',
-        textAlign: 'center',
-        fontFamily: "'Segoe UI', Arial, sans-serif"
-      }}>
-        <h1 style={{ color: '#dc3545', fontSize: '2rem', fontWeight: 500 }}>
-          Access Denied
-        </h1>
-        <p style={{ fontSize: '16px', color: '#666', marginTop: '16px' }}>
-          You don't have the required permission to access this page.
-        </p>
-      </div>
-    );
+    // Redirect users without permission to dashboard instead of showing Access Denied
+    return <Navigate to="/dashboard" replace />;
   }
 
   return children;

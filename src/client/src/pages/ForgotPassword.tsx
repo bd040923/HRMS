@@ -49,14 +49,14 @@ const ForgotPassword: React.FC = () => {
   return (
     <div style={{
       minHeight: '100vh',
-      backgroundColor: '#faf3ff',
+      backgroundColor: '#f9f9f9',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       padding: '20px'
     }}>
       <div style={{
-        backgroundColor: '#fffafe',
+        backgroundColor: '#ffffff',
         padding: '40px',
         borderRadius: '12px',
         boxShadow: '0 4px 12px rgba(0,0,0,0.1)',

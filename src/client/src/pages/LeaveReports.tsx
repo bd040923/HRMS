@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { apiService } from '../services/api';
+import BackToDashboard from '../components/BackToDashboard';
 
 const COLORS = {
   primary: '#78176b',
@@ -266,6 +267,9 @@ const LeaveReports: React.FC = () => {
 
   return (
     <div style={{ padding: '24px', backgroundColor: COLORS.lightBg, minHeight: '100vh' }}>
+      <div style={{ marginBottom: '16px' }}>
+        <BackToDashboard />
+      </div>
       <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
         <h1 style={{ fontFamily: TYPOGRAPHY.fontFamily, color: COLORS.text, marginBottom: '24px' }}>
           Leave Reports

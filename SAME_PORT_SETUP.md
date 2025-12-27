@@ -103,3 +103,5 @@ cd orangehrm/src/server
 - **API Routes:** All `/api/*` requests go to backend
 - **Frontend Routes:** All other routes serve `index.html` (React Router)
 
+
+

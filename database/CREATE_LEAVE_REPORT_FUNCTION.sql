@@ -317,3 +317,5 @@ $$;
 -- Grant permissions
 GRANT EXECUTE ON FUNCTION hrms_data.validate_leave_request(INTEGER, INTEGER, DATE, DATE, INTEGER) TO bhushan;
 
+
+

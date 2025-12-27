@@ -44,3 +44,5 @@ Write-Host ""
 Write-Host "✅ You can now start the server!" -ForegroundColor Green
 Write-Host "   Run: npm run dev" -ForegroundColor Cyan
 
+
+

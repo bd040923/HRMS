@@ -11,8 +11,8 @@ import { apiService } from '../../services/api';
 const COLORS = {
   primary: '#78176b',
   primaryHover: '#590a4f',
-  lightBg: '#faf3ff',
-  lightBgAlt: '#fffafe',
+  lightBg: '#f9f9f9',
+  lightBgAlt: '#f9f9f9',
   white: '#ffffff',
   text: '#333333',
   textLight: '#666666',

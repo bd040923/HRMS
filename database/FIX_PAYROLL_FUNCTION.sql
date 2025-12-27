@@ -149,3 +149,5 @@ GRANT EXECUTE ON FUNCTION hrms_data.calculate_payable_days TO bhushan;
 -- SELECT * FROM hrms_data.calculate_payable_days('2025-04-01'::DATE, 1); -- April (30 days)
 -- SELECT * FROM hrms_data.calculate_payable_days('2025-01-01'::DATE, 1); -- January (31 days)
 
+
+

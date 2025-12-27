@@ -12,7 +12,7 @@ import { apiService } from '../services/api';
 const COLORS = {
   primary: '#78176b',
   primaryHover: '#590a4f',
-  lightBg: '#faf3ff',
+  lightBg: '#f9f9f9',
   lightBgAlt: '#fffafe',
   white: '#ffffff',
   text: '#333333',
@@ -461,8 +461,8 @@ const UserManagement: React.FC = () => {
                 style={{
                   padding: '8px 20px',
                   backgroundColor: COLORS.white,
-                  color: COLORS.primary,
-                  border: `1px solid ${COLORS.primary}`,
+                  color: COLORS.text,
+                  border: `1px solid ${COLORS.border}`,
                   borderRadius: '6px',
                   cursor: 'pointer',
                   fontSize: TYPOGRAPHY.textImportant.fontSize,
@@ -632,7 +632,7 @@ const UserManagement: React.FC = () => {
                       <span style={{
                         padding: '4px 12px',
                         borderRadius: '4px',
-                        backgroundColor: user.role === 'admin' ? COLORS.primary : COLORS.textLight,
+                        backgroundColor: user.role === 'admin' ? '#999999' : COLORS.textLight,
                         color: COLORS.white,
                         fontSize: TYPOGRAPHY.textNote.fontSize,
                         fontWeight: 500
@@ -655,7 +655,7 @@ const UserManagement: React.FC = () => {
                       <span style={{
                         padding: '4px 12px',
                         borderRadius: '4px',
-                        backgroundColor: user.status === 'enabled' ? COLORS.primary : '#dc3545',
+                        backgroundColor: user.status === 'enabled' ? '#76C044' : '#dc3545',
                         color: COLORS.white,
                         fontSize: TYPOGRAPHY.textNote.fontSize,
                         fontWeight: 500
@@ -672,7 +672,7 @@ const UserManagement: React.FC = () => {
                             border: 'none',
                             cursor: 'pointer',
                             fontSize: '18px',
-                            color: COLORS.primary,
+                            color: COLORS.text,
                             padding: '4px'
                           }}
                           title="Edit"
@@ -730,7 +730,7 @@ const UserManagement: React.FC = () => {
               onClick={(e) => e.stopPropagation()}
             >
               <h2 style={{
-                color: COLORS.primary,
+                color: COLORS.text,
                 fontSize: '20px',
                 fontFamily: TYPOGRAPHY.fontFamily,
                 fontWeight: 500,

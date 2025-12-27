@@ -64,3 +64,5 @@ FROM hrms_data.organization_structure;
 -- View all data
 SELECT * FROM hrms_data.organization_structure ORDER BY level, name;
 
+
+

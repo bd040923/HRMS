@@ -37,3 +37,5 @@ if (fs.existsSync(envPath)) {
   console.log('process.env.DB_PASS length:', process.env.DB_PASS ? process.env.DB_PASS.length : 0);
 }
 
+
+

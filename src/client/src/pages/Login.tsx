@@ -46,14 +46,14 @@ const Login: React.FC = () => {
   return (
     <div style={{
       minHeight: '100vh',
-      backgroundColor: '#faf3ff',
+      backgroundColor: '#f9f9f9',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       padding: '20px'
     }}>
       <div style={{
-        backgroundColor: '#fffafe',
+        backgroundColor: '#ffffff',
         padding: '40px',
         borderRadius: '12px',
         boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
@@ -216,7 +216,7 @@ const Login: React.FC = () => {
         <div style={{
           marginTop: '24px',
           padding: '16px',
-          backgroundColor: '#faf3ff',
+          backgroundColor: '#f9f9f9',
           borderRadius: '6px',
           fontSize: '14px',
           fontFamily: "'Segoe UI', Arial, sans-serif",

@@ -47,3 +47,5 @@ ON CONFLICT DO NOTHING;
 -- Verify the table
 SELECT * FROM hrms_data.organization_structure ORDER BY level, name;
 
+
+

@@ -4768,54 +4768,384 @@ const upload = multer({
   }
 });
 
+// Authentication middleware to extract user_id and employee_id
+async function authenticateUser(req, res, next) {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '') || 
+                 req.query.token || 
+                 req.body.token ||
+                 req.headers['x-session-token'];
+    
+    const userIdFromHeader = req.headers['x-user-id'];
+
+    console.log('🔐 Auth attempt:', { 
+      hasToken: !!token, 
+      tokenPrefix: token ? token.substring(0, 20) : 'none',
+      userIdFromHeader,
+      path: req.path 
+    });
+
+    // Priority 1: Use x-user-id header if provided (most reliable)
+    if (userIdFromHeader) {
+      const userResult = await pool.query(
+        `SELECT u.id as user_id, u.username, u.email, u.role, u.status, e.id as employee_id
+         FROM hrms_data.users u
+         LEFT JOIN hrms_data.employees e ON e.user_id = u.id
+         WHERE u.id = $1
+         LIMIT 1`,
+        [parseInt(userIdFromHeader)]
+      );
+
+      if (userResult.rows.length > 0) {
+        const user = userResult.rows[0];
+        req.user = {
+          id: user.user_id,
+          username: user.username,
+          email: user.email,
+          role: user.role,
+          status: user.status,
+          employeeId: user.employee_id
+        };
+        console.log('✅ Authenticated via x-user-id header:', req.user.id);
+        return next();
+      }
+    }
+
+    // Priority 2: Check session table if token provided
+    if (token) {
+      // Check if user_sessions table exists
+      const tableCheck = await pool.query(`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_schema = 'hrms_data' 
+          AND table_name = 'user_sessions'
+        )
+      `);
+
+      if (tableCheck.rows[0].exists) {
+        const sessionResult = await pool.query(
+          `SELECT u.id as user_id, u.username, u.email, u.role, u.status, e.id as employee_id
+           FROM hrms_data.user_sessions s
+           JOIN hrms_data.users u ON s.user_id = u.id
+           LEFT JOIN hrms_data.employees e ON e.user_id = u.id
+           WHERE s.session_token = $1 AND s.expires_at > CURRENT_TIMESTAMP
+           LIMIT 1`,
+          [token]
+        );
+
+        if (sessionResult.rows.length > 0) {
+          const user = sessionResult.rows[0];
+          req.user = {
+            id: user.user_id,
+            username: user.username,
+            email: user.email,
+            role: user.role,
+            status: user.status,
+            employeeId: user.employee_id
+          };
+          console.log('✅ Authenticated via session table:', req.user.id);
+          return next();
+        }
+      }
+
+      // Priority 3: Extract user_id from token format
+      let userId = null;
+      
+      // Try format: session-{user_id}-{timestamp}
+      const sessionMatch = token.match(/^session-(\d+)-/);
+      if (sessionMatch) {
+        userId = parseInt(sessionMatch[1]);
+      } 
+      // Try format: mock-token-{timestamp} - use header or try to parse
+      else if (token.startsWith('mock-token-')) {
+        // Use header if available, otherwise we'll fail
+        userId = userIdFromHeader ? parseInt(userIdFromHeader) : null;
+      }
+      // Try parsing token as direct user_id
+      else {
+        const parsed = parseInt(token);
+        if (!isNaN(parsed) && parsed > 0) {
+          userId = parsed;
+        }
+      }
+      
+      // If we have a user_id, look up the user
+      if (userId) {
+        const userResult = await pool.query(
+          `SELECT u.id as user_id, u.username, u.email, u.role, u.status, e.id as employee_id
+           FROM hrms_data.users u
+           LEFT JOIN hrms_data.employees e ON e.user_id = u.id
+           WHERE u.id = $1
+           LIMIT 1`,
+          [userId]
+        );
+
+        if (userResult.rows.length > 0) {
+          const user = userResult.rows[0];
+          req.user = {
+            id: user.user_id,
+            username: user.username,
+            email: user.email,
+            role: user.role,
+            status: user.status,
+            employeeId: user.employee_id
+          };
+          console.log('✅ Authenticated via token parsing:', req.user.id);
+          return next();
+        }
+      }
+    }
+
+    // If we get here, authentication failed
+    console.error('❌ Authentication failed:', { 
+      hasToken: !!token, 
+      hasUserIdHeader: !!userIdFromHeader,
+      path: req.path 
+    });
+    
+    return res.status(401).json({ 
+      success: false,
+      message: 'Invalid or expired token' 
+    });
+  } catch (error) {
+    console.error('Authentication error:', error);
+    return res.status(500).json({ 
+      success: false,
+      message: 'Authentication failed',
+      error: error.message 
+    });
+  }
+}
+
+// Admin-only middleware
+function requireAdmin(req, res, next) {
+  if (!req.user || req.user.role !== 'admin') {
+    return res.status(403).json({ 
+      success: false,
+      message: 'Admin access required' 
+    });
+  }
+  next();
+}
+
 async function ensureKycTable() {
   try {
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS hrms_data.kyc_documents (
-        id SERIAL PRIMARY KEY,
-        employee_id INTEGER NOT NULL,
-        doc_type VARCHAR(20) NOT NULL,
-        file_name TEXT,
-        file_path TEXT,
-        status VARCHAR(30) DEFAULT 'Pending',
-        uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        masked_number TEXT,
-        UNIQUE(employee_id, doc_type)
-      );
+    // Check if table exists
+    const tableCheck = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'hrms_data' 
+        AND table_name = 'kyc_documents'
+      )
     `);
+    
+    if (!tableCheck.rows[0].exists) {
+      // Table doesn't exist, create it
+      await pool.query(`
+        CREATE TABLE hrms_data.kyc_documents (
+          id SERIAL PRIMARY KEY,
+          employee_id INTEGER NOT NULL,
+          document_type VARCHAR(50) NOT NULL,
+          file_url TEXT NOT NULL,
+          file_name TEXT,
+          upload_status VARCHAR(20) DEFAULT 'UPLOADED',
+          verification_status VARCHAR(20) DEFAULT 'PENDING',
+          rejection_reason TEXT,
+          uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          verified_at TIMESTAMP,
+          verified_by INTEGER,
+          masked_number TEXT,
+          CONSTRAINT fk_employee
+              FOREIGN KEY (employee_id) REFERENCES hrms_data.employees(id) ON DELETE CASCADE,
+          CONSTRAINT unique_employee_document
+              UNIQUE (employee_id, document_type),
+            CONSTRAINT check_verification_status
+                CHECK (verification_status IS NULL OR verification_status IN ('PENDING', 'APPROVED', 'REJECTED'))
+        );
+      `);
+      
+      // Create indexes
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_kyc_employee_id ON hrms_data.kyc_documents(employee_id);
+        CREATE INDEX IF NOT EXISTS idx_kyc_verification_status ON hrms_data.kyc_documents(verification_status);
+        CREATE INDEX IF NOT EXISTS idx_kyc_document_type ON hrms_data.kyc_documents(document_type);
+      `);
+      
+      console.log('✅ Created kyc_documents table');
+    } else {
+      // Table exists, check and add missing columns
+      const columns = await pool.query(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_schema = 'hrms_data' 
+        AND table_name = 'kyc_documents'
+      `);
+      
+      const existingColumns = columns.rows.map(r => r.column_name);
+      const requiredColumns = {
+        'document_type': 'VARCHAR(50)',
+        'file_url': 'TEXT',
+        'file_name': 'TEXT',
+        'upload_status': 'VARCHAR(20) DEFAULT \'UPLOADED\'',
+        'verification_status': 'VARCHAR(20) DEFAULT \'PENDING\'',
+        'rejection_reason': 'TEXT',
+        'verified_at': 'TIMESTAMP',
+        'verified_by': 'INTEGER',
+        'masked_number': 'TEXT'
+      };
+      
+      for (const [colName, colDef] of Object.entries(requiredColumns)) {
+        if (!existingColumns.includes(colName)) {
+          await pool.query(`
+            ALTER TABLE hrms_data.kyc_documents 
+            ADD COLUMN ${colName} ${colDef}
+          `);
+          console.log(`✅ Added missing column: ${colName}`);
+        }
+      }
+      
+      // Migrate old doc_type to document_type if needed
+      if (existingColumns.includes('doc_type') && !existingColumns.includes('document_type')) {
+        await pool.query(`
+          ALTER TABLE hrms_data.kyc_documents 
+          ADD COLUMN document_type VARCHAR(50)
+        `);
+        await pool.query(`
+          UPDATE hrms_data.kyc_documents 
+          SET document_type = CASE 
+            WHEN doc_type = 'aadhaar' THEN 'Aadhaar'
+            WHEN doc_type = 'pan' THEN 'PAN'
+            WHEN doc_type = 'bank' THEN 'Bank Passbook'
+            ELSE INITCAP(doc_type)
+          END
+        `);
+        await pool.query(`
+          ALTER TABLE hrms_data.kyc_documents 
+          ALTER COLUMN document_type SET NOT NULL
+        `);
+        console.log('✅ Migrated doc_type to document_type');
+      }
+      
+      // Migrate file_path to file_url if needed
+      if (existingColumns.includes('file_path') && !existingColumns.includes('file_url')) {
+        await pool.query(`
+          ALTER TABLE hrms_data.kyc_documents 
+          ADD COLUMN file_url TEXT
+        `);
+        await pool.query(`
+          UPDATE hrms_data.kyc_documents 
+          SET file_url = file_path 
+          WHERE file_path IS NOT NULL
+        `);
+        await pool.query(`
+          ALTER TABLE hrms_data.kyc_documents 
+          ALTER COLUMN file_url SET NOT NULL
+        `);
+        console.log('✅ Migrated file_path to file_url');
+      }
+    }
   } catch (err) {
     console.error('Error ensuring kyc_documents table:', err);
+    throw err;
   }
 }
 ensureKycTable();
 
 function computeOverallStatus(docs) {
   const required = ['aadhaar', 'pan', 'bank'];
-  const missing = required.some((k) => !docs[k]?.file_name);
-  if (missing) return 'Pending';
-  if (required.some((k) => docs[k]?.status === 'Rejected')) return 'Re-upload Required';
-  if (required.some((k) => docs[k]?.status === 'Under Review')) return 'Under Review';
-  return 'Approved';
+  const missing = required.some((k) => !docs[k]?.file_name || !docs[k]?.upload_status);
+  
+  if (missing) return 'Not Uploaded';
+  
+  // Check if all are approved
+  const allApproved = required.every((k) => docs[k]?.verification_status === 'APPROVED');
+  if (allApproved) {
+    return 'Approved';
+  }
+  
+  // Check if any are rejected
+  if (required.some((k) => docs[k]?.verification_status === 'REJECTED')) {
+    return 'Re-upload Required';
+  }
+  
+  // Check if any are under review
+  if (required.some((k) => docs[k]?.verification_status === 'PENDING')) {
+    return 'Under Review';
+  }
+  
+  // If uploaded but not submitted (verification_status is NULL)
+  const allUploaded = required.every((k) => docs[k]?.upload_status === 'UPLOADED' && !docs[k]?.verification_status);
+  if (allUploaded) {
+    return 'Uploaded';
+  }
+  
+  // Mixed states
+  return 'In Progress';
 }
 
-// GET profile
-app.get('/api/employee/profile', async (req, res) => {
-  const employeeId = parseInt(req.query.employee_id || '1', 10);
+// GET profile - Employee API (uses authenticated user's employee_id)
+app.get('/api/employee/profile', authenticateUser, async (req, res) => {
   try {
+    // Get employee_id from authenticated user
+    let employeeId = req.user.employeeId;
+    
+    if (!employeeId) {
+      // Try to find employee by user_id
+      const empResult = await pool.query(
+        'SELECT id FROM hrms_data.employees WHERE user_id = $1 LIMIT 1',
+        [req.user.id]
+      );
+      
+      if (empResult.rows.length > 0) {
+        employeeId = empResult.rows[0].id;
+      } else {
+        // Try to find by email
+        const empByEmail = await pool.query(
+          'SELECT id FROM hrms_data.employees WHERE email = $1 LIMIT 1',
+          [req.user.email]
+        );
+        
+        if (empByEmail.rows.length > 0) {
+          employeeId = empByEmail.rows[0].id;
+          // Update employee with user_id
+          await pool.query(
+            'UPDATE hrms_data.employees SET user_id = $1 WHERE id = $2',
+            [req.user.id, employeeId]
+          );
+        } else {
+          // Return empty profile if no employee record found
+          return res.json({
+            id: null,
+            employeeId: '',
+            name: req.user.username || '',
+            title: '',
+            email: req.user.email || '',
+            department: '',
+            phone: '',
+            doj: '',
+            location: '',
+            avatarUrl: '/api/employee/profile/avatar-placeholder'
+          });
+        }
+      }
+    }
+    
     const result = await pool.query(
-      `SELECT id, first_name, last_name, email, phone_number, department, job_title, hire_date, location, avatar_url
+      `SELECT id, first_name, last_name, email, phone_number, department, job_title, hire_date, location, avatar_url, employee_code
        FROM hrms_data.employees
        WHERE id = $1
        LIMIT 1`,
       [employeeId]
     );
+    
     if (result.rows.length === 0) {
-      // Return empty (non-dummy) profile; frontend will render blanks/placeholders
+      // Return empty profile
       return res.json({
         id: employeeId,
-        name: '',
+        employeeId: employeeId?.toString() || '',
+        name: req.user.username || '',
         title: '',
-        email: '',
+        email: req.user.email || '',
         department: '',
         phone: '',
         doj: '',
@@ -4823,15 +5153,17 @@ app.get('/api/employee/profile', async (req, res) => {
         avatarUrl: '/api/employee/profile/avatar-placeholder'
       });
     }
+    
     const row = result.rows[0];
     res.json({
       id: row.id,
-      name: `${row.first_name || ''} ${row.last_name || ''}`.trim(),
+      employeeId: row.employee_code || row.id?.toString() || '',
+      name: `${row.first_name || ''} ${row.last_name || ''}`.trim() || req.user.username || '',
       title: row.job_title || '',
-      email: row.email || '',
+      email: row.email || req.user.email || '',
       department: row.department || '',
       phone: row.phone_number || '',
-      doj: row.hire_date ? new Date(row.hire_date).toISOString() : '',
+      doj: row.hire_date ? new Date(row.hire_date).toISOString().split('T')[0] : '',
       location: row.location || '',
       avatarUrl: row.avatar_url || '/api/employee/profile/avatar-placeholder'
     });
@@ -4848,9 +5180,40 @@ app.get('/api/employee/profile/avatar-placeholder', (req, res) => {
   });
 });
 
-// PUT profile (supports avatar upload)
-app.put('/api/employee/profile', upload.single('avatar'), async (req, res) => {
-  const employeeId = parseInt(req.query.employee_id || '1', 10);
+// PUT profile (supports avatar upload) - Employee API (uses authenticated user's employee_id)
+app.put('/api/employee/profile', authenticateUser, upload.single('avatar'), async (req, res) => {
+  // Get employee_id from authenticated user
+  let employeeId = req.user.employeeId;
+  
+  if (!employeeId) {
+    // Try to find employee by user_id
+    const empResult = await pool.query(
+      'SELECT id FROM hrms_data.employees WHERE user_id = $1 LIMIT 1',
+      [req.user.id]
+    );
+    
+    if (empResult.rows.length > 0) {
+      employeeId = empResult.rows[0].id;
+    } else {
+      // Try to find by email
+      const empByEmail = await pool.query(
+        'SELECT id FROM hrms_data.employees WHERE email = $1 LIMIT 1',
+        [req.user.email]
+      );
+      
+      if (empByEmail.rows.length > 0) {
+        employeeId = empByEmail.rows[0].id;
+        // Update employee with user_id
+        await pool.query(
+          'UPDATE hrms_data.employees SET user_id = $1 WHERE id = $2',
+          [req.user.id, employeeId]
+        );
+      } else {
+        return res.status(400).json({ error: 'No employee record found. Please contact administrator.' });
+      }
+    }
+  }
+  
   const { name, title, email, department, phone, doj, location } = req.body || {};
   const avatarUrl = req.file ? `/uploads/profile/${req.file.filename}` : undefined;
   try {
@@ -4897,61 +5260,192 @@ app.put('/api/employee/profile', upload.single('avatar'), async (req, res) => {
   }
 });
 
-// Upload KYC document
-app.post('/api/employee/kyc/upload', upload.single('file'), async (req, res) => {
-  const employeeId = parseInt(req.body.employee_id || req.query.employee_id || '1', 10);
-  const docType = (req.body.documentType || '').toLowerCase();
-  if (!['aadhaar', 'pan', 'bank'].includes(docType)) {
-    return res.status(400).json({ error: 'Invalid document type' });
-  }
-  if (!req.file) {
-    return res.status(400).json({ error: 'File is required' });
-  }
+// Upload KYC document - Employee API
+app.post('/api/kyc/upload', authenticateUser, upload.single('file'), async (req, res) => {
   try {
+    // Get employee_id from authenticated user
+    let employeeId = req.user.employeeId;
+    
+    // If user doesn't have employee_id, try to find or create one
+    if (!employeeId) {
+      // Try to find employee by user_id
+      const empResult = await pool.query(
+        'SELECT id FROM hrms_data.employees WHERE user_id = $1 LIMIT 1',
+        [req.user.id]
+      );
+      
+      if (empResult.rows.length > 0) {
+        employeeId = empResult.rows[0].id;
+      } else {
+        // Try to find by email
+        const empByEmail = await pool.query(
+          'SELECT id FROM hrms_data.employees WHERE email = $1 LIMIT 1',
+          [req.user.email]
+        );
+        
+        if (empByEmail.rows.length > 0) {
+          employeeId = empByEmail.rows[0].id;
+          // Update employee with user_id
+          await pool.query(
+            'UPDATE hrms_data.employees SET user_id = $1 WHERE id = $2',
+            [req.user.id, employeeId]
+          );
+        } else {
+          return res.status(400).json({ 
+            error: 'No employee record found. Please contact administrator.' 
+          });
+        }
+      }
+    }
+
+    const docType = (req.body.documentType || '').toLowerCase();
+    const docTypeMap = {
+      'aadhaar': 'Aadhaar',
+      'pan': 'PAN',
+      'bank': 'Bank Passbook'
+    };
+    
+    if (!docTypeMap[docType]) {
+      return res.status(400).json({ error: 'Invalid document type. Must be: aadhaar, pan, or bank' });
+    }
+    
+    if (!req.file) {
+      return res.status(400).json({ error: 'File is required' });
+    }
+
     await ensureKycTable();
-    const filePath = `/uploads/kyc/${req.file.filename}`;
-    await pool.query(
-      `INSERT INTO hrms_data.kyc_documents (employee_id, doc_type, file_name, file_path, status, uploaded_at)
-       VALUES ($1, $2, $3, $4, 'Pending', CURRENT_TIMESTAMP)
-       ON CONFLICT (employee_id, doc_type)
-       DO UPDATE SET file_name = EXCLUDED.file_name, file_path = EXCLUDED.file_path, status = 'Pending', uploaded_at = CURRENT_TIMESTAMP`,
-      [employeeId, docType, req.file.originalname, filePath]
+    const fileUrl = `/uploads/kyc/${req.file.filename}`;
+    
+    console.log(`📤 Uploading KYC: employee_id=${employeeId}, docType=${docType}, mappedType=${docTypeMap[docType]}, file=${req.file.originalname}`);
+    
+    const result = await pool.query(
+      `INSERT INTO hrms_data.kyc_documents 
+       (employee_id, document_type, file_url, file_name, upload_status, verification_status, uploaded_at)
+       VALUES ($1, $2, $3, $4, 'UPLOADED', NULL, CURRENT_TIMESTAMP)
+       ON CONFLICT (employee_id, document_type)
+       DO UPDATE SET 
+         file_url = EXCLUDED.file_url,
+         file_name = EXCLUDED.file_name,
+         upload_status = 'UPLOADED',
+         verification_status = NULL,
+         uploaded_at = CURRENT_TIMESTAMP,
+         rejection_reason = NULL
+       RETURNING id, employee_id, document_type, file_url, file_name, upload_status, verification_status`,
+      [employeeId, docTypeMap[docType], fileUrl, req.file.originalname]
     );
-    res.json({ success: true, filePath });
+    
+    if (result.rows.length > 0) {
+      console.log(`✅ KYC document saved: ID=${result.rows[0].id}, employee_id=${result.rows[0].employee_id}`);
+      res.json({ 
+        success: true, 
+        fileUrl, 
+        message: 'Document uploaded successfully',
+        document: result.rows[0]
+      });
+    } else {
+      console.error('❌ KYC document insert returned no rows');
+      res.status(500).json({ error: 'Failed to save document' });
+    }
   } catch (err) {
     console.error('Error uploading KYC:', err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// Get KYC status
-app.get('/api/employee/kyc/status', async (req, res) => {
-  const employeeId = parseInt(req.query.employee_id || '1', 10);
+// Legacy endpoint for backward compatibility
+app.post('/api/employee/kyc/upload', authenticateUser, upload.single('file'), async (req, res) => {
+  // Redirect to new endpoint
+  req.url = '/api/kyc/upload';
+  return app._router.handle(req, res);
+});
+
+// Get Employee KYC status - Employee API
+app.get('/api/kyc/my', authenticateUser, async (req, res) => {
   try {
+    // Get employee_id from authenticated user
+    let employeeId = req.user.employeeId;
+    
+    if (!employeeId) {
+      // Try to find employee by user_id
+      const empResult = await pool.query(
+        'SELECT id FROM hrms_data.employees WHERE user_id = $1 LIMIT 1',
+        [req.user.id]
+      );
+      
+      if (empResult.rows.length > 0) {
+        employeeId = empResult.rows[0].id;
+      } else {
+        // Return empty documents if no employee record
+        return res.json({
+          documents: {
+            aadhaar: { file_name: null, uploaded_at: null, upload_status: null, verification_status: null, file_url: null, masked_number: null, submitted_at: null },
+            pan: { file_name: null, uploaded_at: null, upload_status: null, verification_status: null, file_url: null, masked_number: null, submitted_at: null },
+            bank: { file_name: null, uploaded_at: null, upload_status: null, verification_status: null, file_url: null, masked_number: null, submitted_at: null },
+          },
+          overallStatus: 'Not Uploaded'
+        });
+      }
+    }
+
     await ensureKycTable();
-    const result = await pool.query(
-      `SELECT doc_type, file_name, file_path, status, uploaded_at, masked_number
-       FROM hrms_data.kyc_documents
-       WHERE employee_id = $1`,
-      [employeeId]
-    );
-    const docs = {
-      aadhaar: { file_name: null, uploaded_at: null, status: 'Pending', url: null, masked_number: null },
-      pan: { file_name: null, uploaded_at: null, status: 'Pending', url: null, masked_number: null },
-      bank: { file_name: null, uploaded_at: null, status: 'Pending', url: null, masked_number: null },
+    
+    console.log(`📥 Fetching KYC for employee_id=${employeeId}`);
+    
+    // Check if submitted_at column exists, if not, query without it
+    let result;
+    try {
+      result = await pool.query(
+        `SELECT document_type, file_name, file_url, upload_status, verification_status, uploaded_at, submitted_at, masked_number, rejection_reason
+         FROM hrms_data.kyc_documents
+         WHERE employee_id = $1`,
+        [employeeId]
+      );
+    } catch (err) {
+      // If submitted_at column doesn't exist, query without it
+      if (err.message && err.message.includes('submitted_at')) {
+        console.log('⚠️ submitted_at column not found, using fallback query');
+        result = await pool.query(
+          `SELECT document_type, file_name, file_url, upload_status, verification_status, uploaded_at, NULL as submitted_at, masked_number, rejection_reason
+           FROM hrms_data.kyc_documents
+           WHERE employee_id = $1`,
+          [employeeId]
+        );
+      } else {
+        throw err;
+      }
+    }
+    
+    console.log(`📥 Found ${result.rows.length} KYC documents for employee_id=${employeeId}`);
+    
+    // Map document types to lowercase keys for frontend
+    const docTypeMap = {
+      'Aadhaar': 'aadhaar',
+      'PAN': 'pan',
+      'Bank Passbook': 'bank'
     };
+    
+    const docs = {
+      aadhaar: { file_name: null, uploaded_at: null, upload_status: null, verification_status: null, file_url: null, masked_number: null, rejection_reason: null, submitted_at: null },
+      pan: { file_name: null, uploaded_at: null, upload_status: null, verification_status: null, file_url: null, masked_number: null, rejection_reason: null, submitted_at: null },
+      bank: { file_name: null, uploaded_at: null, upload_status: null, verification_status: null, file_url: null, masked_number: null, rejection_reason: null, submitted_at: null },
+    };
+    
     result.rows.forEach((row) => {
-      const key = row.doc_type;
-      if (docs[key] !== undefined) {
+      const key = docTypeMap[row.document_type];
+      if (key && docs[key] !== undefined) {
         docs[key] = {
           file_name: row.file_name,
           uploaded_at: row.uploaded_at,
-          status: row.status,
-          url: row.file_path,
-          masked_number: row.masked_number
+          upload_status: row.upload_status || null,
+          verification_status: row.verification_status || null,
+          file_url: row.file_url,
+          masked_number: row.masked_number,
+          rejection_reason: row.rejection_reason,
+          submitted_at: row.submitted_at || null
         };
       }
     });
+    
     const overallStatus = computeOverallStatus(docs);
     res.json({ documents: docs, overallStatus });
   } catch (err) {
@@ -4960,22 +5454,474 @@ app.get('/api/employee/kyc/status', async (req, res) => {
   }
 });
 
-// Update KYC status (e.g., Under Review)
-app.put('/api/employee/kyc/status', async (req, res) => {
-  const employeeId = parseInt(req.body?.employee_id || req.query.employee_id || '1', 10);
+// Legacy endpoint for backward compatibility
+app.get('/api/employee/kyc/status', authenticateUser, async (req, res) => {
+  req.url = '/api/kyc/my';
+  return app._router.handle(req, res);
+});
+
+// Submit individual KYC document for review - Employee API
+app.post('/api/kyc/submit/:documentType', authenticateUser, async (req, res) => {
+  try {
+    let employeeId = req.user.employeeId;
+    
+    if (!employeeId) {
+      const empResult = await pool.query(
+        'SELECT id FROM hrms_data.employees WHERE user_id = $1 LIMIT 1',
+        [req.user.id]
+      );
+      if (empResult.rows.length > 0) {
+        employeeId = empResult.rows[0].id;
+      } else {
+        return res.status(400).json({ error: 'No employee record found' });
+      }
+    }
+
+    await ensureKycTable();
+    
+    const docType = (req.params.documentType || '').toLowerCase();
+    const docTypeMap = {
+      'aadhaar': 'Aadhaar',
+      'pan': 'PAN',
+      'bank': 'Bank Passbook'
+    };
+    
+    if (!docTypeMap[docType]) {
+      return res.status(400).json({ error: 'Invalid document type. Must be: aadhaar, pan, or bank' });
+    }
+    
+    const mappedDocType = docTypeMap[docType];
+    
+    // Check if document exists and is uploaded
+    // Handle case where submitted_at column might not exist
+    let checkResult;
+    try {
+      checkResult = await pool.query(
+        `SELECT id, upload_status, verification_status, submitted_at
+         FROM hrms_data.kyc_documents
+         WHERE employee_id = $1 AND document_type = $2`,
+        [employeeId, mappedDocType]
+      );
+    } catch (err) {
+      if (err.message && err.message.includes('submitted_at')) {
+        // Fallback: query without submitted_at
+        checkResult = await pool.query(
+          `SELECT id, upload_status, verification_status, NULL as submitted_at
+           FROM hrms_data.kyc_documents
+           WHERE employee_id = $1 AND document_type = $2`,
+          [employeeId, mappedDocType]
+        );
+      } else {
+        throw err;
+      }
+    }
+    
+    if (checkResult.rows.length === 0) {
+      return res.status(400).json({ 
+        error: 'Document not found. Please upload the document first.' 
+      });
+    }
+    
+    const doc = checkResult.rows[0];
+    
+    if (doc.upload_status !== 'UPLOADED') {
+      return res.status(400).json({ 
+        error: 'Document is not uploaded. Please upload the document first.' 
+      });
+    }
+    
+    if (doc.verification_status === 'PENDING' || doc.verification_status === 'APPROVED') {
+      return res.status(400).json({ 
+        error: 'Document is already submitted or approved.' 
+      });
+    }
+    
+    // Submit the individual document
+    // Try to update with submitted_at, fallback if column doesn't exist
+    let updateResult;
+    try {
+      updateResult = await pool.query(
+        `UPDATE hrms_data.kyc_documents
+         SET verification_status = 'PENDING',
+             submitted_at = CURRENT_TIMESTAMP
+         WHERE employee_id = $1 
+         AND document_type = $2
+         RETURNING id, document_type, submitted_at`,
+        [employeeId, mappedDocType]
+      );
+    } catch (err) {
+      if (err.message && err.message.includes('submitted_at')) {
+        // Fallback: update without submitted_at
+        console.log('⚠️ submitted_at column not found, updating without it');
+        updateResult = await pool.query(
+          `UPDATE hrms_data.kyc_documents
+           SET verification_status = 'PENDING'
+           WHERE employee_id = $1 
+           AND document_type = $2
+           RETURNING id, document_type, NULL as submitted_at`,
+          [employeeId, mappedDocType]
+        );
+      } else {
+        throw err;
+      }
+    }
+    
+    if (updateResult.rows.length === 0) {
+      return res.status(500).json({ error: 'Failed to submit document' });
+    }
+    
+    res.json({ 
+      success: true, 
+      message: `${mappedDocType} submitted for review`,
+      document: updateResult.rows[0]
+    });
+  } catch (err) {
+    console.error('Error submitting KYC document:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Submit all KYC documents for review - Employee API (bulk submit)
+app.post('/api/kyc/submit', authenticateUser, async (req, res) => {
+  try {
+    let employeeId = req.user.employeeId;
+    
+    if (!employeeId) {
+      const empResult = await pool.query(
+        'SELECT id FROM hrms_data.employees WHERE user_id = $1 LIMIT 1',
+        [req.user.id]
+      );
+      if (empResult.rows.length > 0) {
+        employeeId = empResult.rows[0].id;
+      } else {
+        return res.status(400).json({ error: 'No employee record found' });
+      }
+    }
+
+    await ensureKycTable();
+    
+    // Only submit documents that are uploaded but not yet submitted
+    // (verification_status is NULL means uploaded but not submitted)
+    // Only submit documents that have been individually submitted (submitted_at IS NOT NULL)
+    // Handle case where submitted_at column might not exist
+    let updateResult;
+    try {
+      updateResult = await pool.query(
+        `UPDATE hrms_data.kyc_documents
+         SET verification_status = 'PENDING'
+         WHERE employee_id = $1 
+         AND upload_status = 'UPLOADED' 
+         AND submitted_at IS NOT NULL
+         AND (verification_status IS NULL OR verification_status = 'REJECTED')
+         RETURNING id, document_type`,
+        [employeeId]
+      );
+    } catch (err) {
+      if (err.message && err.message.includes('submitted_at')) {
+        // Fallback: submit all uploaded documents (old behavior)
+        console.log('⚠️ submitted_at column not found, using fallback query');
+        updateResult = await pool.query(
+          `UPDATE hrms_data.kyc_documents
+           SET verification_status = 'PENDING'
+           WHERE employee_id = $1 
+           AND upload_status = 'UPLOADED' 
+           AND (verification_status IS NULL OR verification_status = 'REJECTED')
+           RETURNING id, document_type`,
+          [employeeId]
+        );
+      } else {
+        throw err;
+      }
+    }
+    
+    if (updateResult.rows.length === 0) {
+      return res.status(400).json({ 
+        error: 'No documents available to submit. Please upload and submit individual documents first.' 
+      });
+    }
+    
+    res.json({ 
+      success: true, 
+      message: 'KYC documents submitted for review',
+      submittedCount: updateResult.rows.length
+    });
+  } catch (err) {
+    console.error('Error submitting KYC:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Legacy endpoint
+app.put('/api/employee/kyc/status', authenticateUser, async (req, res) => {
   const status = req.body?.status;
-  if (!status) return res.status(400).json({ error: 'Status is required' });
+  if (status === 'Under Review') {
+    req.url = '/api/kyc/submit';
+    req.method = 'POST';
+    return app._router.handle(req, res);
+  }
+  return res.status(400).json({ error: 'Invalid status update' });
+});
+
+// ==================== ADMIN KYC APIs ====================
+
+// Get pending KYC documents - Admin API
+app.get('/api/admin/kyc/pending', authenticateUser, requireAdmin, async (req, res) => {
   try {
     await ensureKycTable();
-    await pool.query(
-      `UPDATE hrms_data.kyc_documents
-       SET status = $1
-       WHERE employee_id = $2`,
-      [status, employeeId]
+    const result = await pool.query(
+      `SELECT 
+        k.id,
+        k.employee_id,
+        k.document_type,
+        k.file_url,
+        k.file_name,
+        k.uploaded_at,
+        k.verification_status,
+        k.verified_at,
+        k.verified_by,
+        k.rejection_reason,
+        e.first_name || ' ' || e.last_name AS employee_name,
+        e.email AS employee_email,
+        NULL AS employee_code
+       FROM hrms_data.kyc_documents k
+       JOIN hrms_data.employees e ON e.id = k.employee_id
+       ORDER BY 
+         CASE k.verification_status 
+           WHEN 'PENDING' THEN 1 
+           WHEN 'APPROVED' THEN 2 
+           WHEN 'REJECTED' THEN 3 
+           ELSE 4 
+         END,
+         k.uploaded_at DESC`
     );
-    res.json({ success: true });
+    
+    res.json({ success: true, documents: result.rows });
   } catch (err) {
-    console.error('Error updating KYC status:', err);
+    console.error('Error fetching pending KYC:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Verify/Approve/Reject KYC - Admin API
+app.post('/api/admin/kyc/verify', authenticateUser, requireAdmin, async (req, res) => {
+  try {
+    const { kyc_id, status, rejection_reason } = req.body;
+    
+    if (!kyc_id || !status) {
+      return res.status(400).json({ error: 'kyc_id and status are required' });
+    }
+    
+    if (!['APPROVED', 'REJECTED'].includes(status)) {
+      return res.status(400).json({ error: 'status must be APPROVED or REJECTED' });
+    }
+    
+    if (status === 'REJECTED' && !rejection_reason) {
+      return res.status(400).json({ error: 'rejection_reason is required when rejecting' });
+    }
+
+    await ensureKycTable();
+    
+    const updateQuery = status === 'APPROVED'
+      ? `UPDATE hrms_data.kyc_documents
+         SET verification_status = 'APPROVED',
+             verified_at = CURRENT_TIMESTAMP,
+             verified_by = $1,
+             rejection_reason = NULL
+         WHERE id = $2
+         RETURNING *`
+      : `UPDATE hrms_data.kyc_documents
+         SET verification_status = 'REJECTED',
+             verified_at = CURRENT_TIMESTAMP,
+             verified_by = $1,
+             rejection_reason = $3
+         WHERE id = $2
+         RETURNING *`;
+    
+    const params = status === 'APPROVED'
+      ? [req.user.id, kyc_id]
+      : [req.user.id, kyc_id, rejection_reason];
+    
+    const result = await pool.query(updateQuery, params);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'KYC document not found' });
+    }
+    
+    res.json({ 
+      success: true, 
+      message: `Document ${status.toLowerCase()} successfully`,
+      document: result.rows[0]
+    });
+  } catch (err) {
+    console.error('Error verifying KYC:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get all employees with KYC data - Admin API
+app.get('/api/admin/employees/with-kyc', authenticateUser, requireAdmin, async (req, res) => {
+  try {
+    await ensureKycTable();
+    
+    // Fetch all employees with their basic info
+    // Handle missing columns gracefully by checking if they exist first
+    let employeesResult;
+    try {
+      employeesResult = await pool.query(
+        `SELECT 
+          e.id,
+          e.employee_id,
+          e.first_name,
+          e.middle_name,
+          e.last_name,
+          e.email as office_email,
+          COALESCE(e.phone_number, e.phone) as primary_phone,
+          COALESCE(e.alternate_phone, NULL) as alternate_phone,
+          COALESCE(e.personal_email, NULL) as personal_email,
+          COALESCE(e.residential_address, NULL) as residential_address,
+          e.status
+        FROM hrms_data.employees e
+        WHERE e.status = 'active'
+        ORDER BY e.first_name, e.last_name`
+      );
+    } catch (err) {
+      // If columns don't exist, query without them
+      if (err.message && (err.message.includes('alternate_phone') || err.message.includes('personal_email') || err.message.includes('residential_address'))) {
+        console.log('⚠️ Some employee columns missing, using fallback query');
+        employeesResult = await pool.query(
+          `SELECT 
+            e.id,
+            e.employee_id,
+            e.first_name,
+            e.middle_name,
+            e.last_name,
+            e.email as office_email,
+            COALESCE(e.phone_number, e.phone) as primary_phone,
+            NULL as alternate_phone,
+            NULL as personal_email,
+            NULL as residential_address,
+            e.status
+          FROM hrms_data.employees e
+          WHERE e.status = 'active'
+          ORDER BY e.first_name, e.last_name`
+        );
+      } else {
+        throw err;
+      }
+    }
+    
+    // Fetch all KYC documents
+    let kycResult;
+    try {
+      kycResult = await pool.query(
+        `SELECT 
+          id,
+          employee_id,
+          document_type,
+          file_name,
+          file_url,
+          upload_status,
+          verification_status,
+          uploaded_at,
+          submitted_at,
+          masked_number,
+          rejection_reason,
+          verified_at,
+          verified_by
+        FROM hrms_data.kyc_documents
+        ORDER BY employee_id, document_type`
+      );
+    } catch (err) {
+      if (err.message && err.message.includes('submitted_at')) {
+        // Fallback: query without submitted_at
+        kycResult = await pool.query(
+          `SELECT 
+            id,
+            employee_id,
+            document_type,
+            file_name,
+            file_url,
+            upload_status,
+            verification_status,
+            uploaded_at,
+            NULL as submitted_at,
+            masked_number,
+            rejection_reason,
+            verified_at,
+            verified_by
+          FROM hrms_data.kyc_documents
+          ORDER BY employee_id, document_type`
+        );
+      } else {
+        throw err;
+      }
+    }
+    
+    // Map KYC documents by employee_id and document_type
+    const kycMap = {};
+    kycResult.rows.forEach((doc) => {
+      if (!kycMap[doc.employee_id]) {
+        kycMap[doc.employee_id] = {};
+      }
+      const docTypeMap = {
+        'Aadhaar': 'aadhaar',
+        'PAN': 'pan',
+        'Bank Passbook': 'bank'
+      };
+      const key = docTypeMap[doc.document_type] || doc.document_type.toLowerCase();
+      kycMap[doc.employee_id][key] = doc;
+    });
+    
+    // Combine employee data with KYC data
+    const employeesWithKyc = employeesResult.rows.map((emp) => {
+      const kycDocs = kycMap[emp.id] || {};
+      
+      // Determine overall KYC status
+      const aadhaar = kycDocs.aadhaar;
+      const pan = kycDocs.pan;
+      const bank = kycDocs.bank;
+      
+      let overallStatus = 'Not Submitted';
+      if (aadhaar || pan || bank) {
+        const allApproved = [aadhaar, pan, bank].every(doc => 
+          doc && doc.verification_status === 'APPROVED'
+        );
+        const anyRejected = [aadhaar, pan, bank].some(doc => 
+          doc && doc.verification_status === 'REJECTED'
+        );
+        const anyPending = [aadhaar, pan, bank].some(doc => 
+          doc && doc.verification_status === 'PENDING'
+        );
+        const anySubmitted = [aadhaar, pan, bank].some(doc => 
+          doc && (doc.submitted_at || doc.verification_status === 'PENDING' || doc.verification_status === 'APPROVED' || doc.verification_status === 'REJECTED')
+        );
+        
+        if (allApproved) {
+          overallStatus = 'Approved';
+        } else if (anyRejected) {
+          overallStatus = 'Rejected';
+        } else if (anyPending) {
+          overallStatus = 'Submitted';
+        } else if (anySubmitted) {
+          overallStatus = 'Submitted';
+        }
+      }
+      
+      return {
+        ...emp,
+        full_name: [emp.first_name, emp.middle_name, emp.last_name].filter(Boolean).join(' '),
+        kyc: {
+          aadhaar: aadhaar || null,
+          pan: pan || null,
+          bank: bank || null,
+          overallStatus
+        }
+      };
+    });
+    
+    res.json({ success: true, employees: employeesWithKyc });
+  } catch (err) {
+    console.error('Error fetching employees with KYC:', err);
     res.status(500).json({ error: err.message });
   }
 });

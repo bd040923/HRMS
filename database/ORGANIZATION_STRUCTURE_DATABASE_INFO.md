@@ -103,3 +103,5 @@ The Organization Structure page is accessible at:
 - Deleting a parent unit will cascade delete all children (CASCADE)
 - The table uses an `updated_at` trigger to automatically update the timestamp on changes
 
+
+

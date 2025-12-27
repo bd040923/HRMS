@@ -41,3 +41,5 @@ Write-Host "   DB_PASS=qa%401234 (will be decoded to qa@1234)" -ForegroundColor 
 Write-Host ""
 Write-Host "Restart your server now." -ForegroundColor Yellow
 
+
+

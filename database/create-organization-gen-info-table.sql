@@ -53,3 +53,5 @@ GRANT USAGE, SELECT ON SEQUENCE hrms_data.organization_gen_info_id_seq TO bhusha
 -- Verify the table
 SELECT * FROM hrms_data.organization_gen_info;
 
+
+

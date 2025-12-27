@@ -45,15 +45,15 @@ const Sidebar: React.FC = () => {
   const menuItems: SidebarItem[] = [
     ...(isAdmin() ? [{ name: 'Dashboard', path: '/dashboard', icon: '📊' }] : []),
     ...(isAdmin() ? [{ name: 'Admin', path: '/admin/users', icon: '👥' }] : []),
-    ...(isAdmin() ? [{ name: 'PIM', path: '/employees', icon: '👤' }] : []),
     { 
       name: 'Leave', 
       path: '/leave', 
       icon: '📋'
     },
     { name: 'Time', path: '/attendance', icon: '⏰' },
-    { name: 'Onboarding', path: '/recruitment', icon: '🔍' },
-    { name: 'My Info', path: '/my-info', icon: '👤' },
+    ...(isAdmin() ? [{ name: 'Onboarding', path: '/recruitment', icon: '🔍' }] : []),
+    ...(isAdmin() ? [{ name: 'Emp Records', path: '/employees', icon: '📁' }] : []),
+    ...(!isAdmin() ? [{ name: 'My Info', path: '/my-info', icon: '👤' }] : []),
   ];
 
   const isActive = (path: string) => {
@@ -100,7 +100,7 @@ const Sidebar: React.FC = () => {
         justifyContent: collapsed ? 'center' : 'space-between',
       }}>
         {!collapsed && (
-          <Link to="/dashboard" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center' }}>
+          <Link to="/dashboard" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '16px' }}>
             <img 
               src="/images/arithwise_logo.png"
               alt="arithwise_hrms" 
@@ -108,23 +108,24 @@ const Sidebar: React.FC = () => {
                 height: '40px', 
                 width: 'auto',
                 maxWidth: '180px',
-                objectFit: 'contain'
+                objectFit: 'contain',
+                marginRight: '4px',
               }}
               onError={(e) => {
                 const target = e.target as HTMLImageElement;
                 target.style.display = 'none';
-                const parent = target.parentElement;
-                if (parent && !parent.querySelector('span')) {
-                  const fallback = document.createElement('span');
-                  fallback.textContent = 'arithwise_hrms';
-                  fallback.style.color = COLORS.primary;
-                  fallback.style.fontSize = '1.25rem';
-                  fallback.style.fontFamily = TYPOGRAPHY.fontFamily;
-                  fallback.style.fontWeight = '600';
-                  parent.appendChild(fallback);
-                }
               }}
             />
+            <span style={{
+              color: COLORS.text,
+              fontSize: '1.25rem',
+              fontFamily: TYPOGRAPHY.fontFamily,
+              fontWeight: '600',
+              letterSpacing: '0.5px',
+              marginLeft: '4px',
+            }}>
+              arithsHRMS
+            </span>
           </Link>
         )}
         <button
@@ -174,7 +175,7 @@ const Sidebar: React.FC = () => {
                 outline: 'none',
               }}
               onFocus={(e) => {
-                e.currentTarget.style.borderColor = COLORS.primary;
+                e.currentTarget.style.borderColor = COLORS.border;
               }}
               onBlur={(e) => {
                 e.currentTarget.style.borderColor = COLORS.border;
@@ -193,10 +194,6 @@ const Sidebar: React.FC = () => {
           .filter(item => {
             // Filter by search query
             if (searchQuery !== '' && !item.name.toLowerCase().includes(searchQuery.toLowerCase())) {
-              return false;
-            }
-            // Hide Onboarding for non-admin users
-            if (item.name === 'Onboarding' && !isAdmin()) {
               return false;
             }
             return true;
@@ -226,8 +223,8 @@ const Sidebar: React.FC = () => {
                     alignItems: 'center',
                     justifyContent: collapsed ? 'center' : 'space-between',
                     padding: collapsed ? '12px 18px' : '12px 20px',
-                    color: active ? COLORS.white : COLORS.text,
-                    backgroundColor: active ? COLORS.primary : 'transparent',
+                    color: active ? COLORS.text : COLORS.text,
+                    backgroundColor: active ? '#f5f5f5' : 'transparent',
                     textDecoration: 'none',
                     transition: 'all 0.2s',
                     border: 'none',
@@ -268,8 +265,8 @@ const Sidebar: React.FC = () => {
                     alignItems: 'center',
                     justifyContent: collapsed ? 'center' : 'flex-start',
                     padding: collapsed ? '12px 18px' : '12px 20px',
-                    color: active ? COLORS.white : COLORS.text,
-                    backgroundColor: active ? COLORS.primary : 'transparent',
+                    color: active ? COLORS.text : COLORS.text,
+                    backgroundColor: active ? '#f5f5f5' : 'transparent',
                     textDecoration: 'none',
                     transition: 'all 0.2s',
                     fontFamily: TYPOGRAPHY.fontFamily,
@@ -309,7 +306,7 @@ const Sidebar: React.FC = () => {
                         style={{
                           display: 'block',
                           padding: '10px 20px 10px 50px',
-                          color: subActive ? COLORS.primary : COLORS.textLight,
+                          color: subActive ? COLORS.text : COLORS.textLight,
                           backgroundColor: subActive ? COLORS.white : 'transparent',
                           textDecoration: 'none',
                           transition: 'all 0.2s',
@@ -320,7 +317,7 @@ const Sidebar: React.FC = () => {
                         onMouseEnter={(e) => {
                           if (!subActive) {
                             e.currentTarget.style.backgroundColor = COLORS.white;
-                            e.currentTarget.style.color = COLORS.primary;
+                            e.currentTarget.style.color = COLORS.text;
                           }
                         }}
                         onMouseLeave={(e) => {

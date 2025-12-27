@@ -62,3 +62,5 @@ WHERE table_schema = 'hrms_data'
 AND table_name = 'nationalities'
 ORDER BY ordinal_position;
 
+
+

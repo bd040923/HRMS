@@ -7,15 +7,15 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { apiService } from '../services/api';
-import { useAuth } from '../context/AuthContext';
+import BackToDashboard from '../components/BackToDashboard';
 
 const COLORS = {
   // Strict color palette
   primary: '#78176b',        // Primary brand color
   primaryHover: '#590a4f',   // Hover/active/emphasis
   lightBg: '#f9f9f9',        // Page background
-  cardBg: '#faf3ff',         // Primary card background
-  cardBgSecondary: '#fffafe', // Secondary card background
+  cardBg: '#ffffff',         // White card background (minimalistic)
+  cardBgSecondary: '#f9f9f9', // Light gray secondary card background
   white: '#ffffff',
   text: '#222',              // All text
   textLight: '#666666',
@@ -137,13 +137,13 @@ const HoursInputCell: React.FC<HoursInputCellProps> = ({ initialHours, onSave, f
       onBlur={handleBlur}
       onKeyDown={handleKeyDown}
       placeholder="HH:MM"
-      style={{
+          style={{
         width: '100%',
         padding: '8px',
         border: `1px solid ${COLORS.primary}`,
         borderRadius: '4px',
         fontSize: '14px',
-        fontFamily: TYPOGRAPHY.fontFamily,
+            fontFamily: TYPOGRAPHY.fontFamily,
         textAlign: 'center',
         outline: 'none',
         boxSizing: 'border-box',
@@ -370,7 +370,11 @@ const TimePage: React.FC = () => {
   }, [employeeId, activeDropdown, attendanceSection]);
 
   const renderNav = () => (
-    <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', flexWrap: 'wrap' }}>
+    <>
+      <div style={{ marginBottom: '16px' }}>
+        <BackToDashboard />
+      </div>
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', flexWrap: 'wrap' }}>
       {/* Timesheets Dropdown */}
       <div ref={timesheetsRef} style={{ position: 'relative' }}>
         {(() => {
@@ -390,16 +394,16 @@ const TimePage: React.FC = () => {
                   setTimesheetSection('myTimesheets');
                 }
               }}
-              style={{
+            style={{
                 padding: '12px 24px',
                 borderRadius: '6px',
                 border: 'none',
-                backgroundColor: activeDropdown === 'timesheets' ? COLORS.primary : 'transparent',
-                color: activeDropdown === 'timesheets' ? COLORS.white : COLORS.textLight,
-                fontFamily: TYPOGRAPHY.fontFamily,
+                backgroundColor: activeDropdown === 'timesheets' ? '#f5f5f5' : 'transparent',
+                color: activeDropdown === 'timesheets' ? COLORS.text : COLORS.textLight,
+              fontFamily: TYPOGRAPHY.fontFamily,
                 fontSize: '15px',
                 cursor: 'pointer',
-                fontWeight: 500,
+              fontWeight: 500,
               }}
             >
               Timesheets{hasMultiple ? ' ▼' : ''}
@@ -430,14 +434,14 @@ const TimePage: React.FC = () => {
                   setTimesheetSection(item.value);
                   setTimesheetsOpen(false);
                 }}
-                style={{
-                  width: '100%',
+            style={{
+              width: '100%',
                   padding: '10px 16px',
                   border: 'none',
                   backgroundColor: 'transparent',
                   textAlign: 'left',
                   cursor: 'pointer',
-                  fontFamily: TYPOGRAPHY.fontFamily,
+              fontFamily: TYPOGRAPHY.fontFamily,
                   color: COLORS.textLight,
                   fontSize: '14px',
                 }}
@@ -447,7 +451,7 @@ const TimePage: React.FC = () => {
                 {item.label}
               </button>
             ))}
-          </div>
+        </div>
         )}
       </div>
 
@@ -474,13 +478,13 @@ const TimePage: React.FC = () => {
                   setAttendanceSection('myRecords');
                 }
               }}
-              style={{
+          style={{
                 padding: '12px 24px',
                 borderRadius: '6px',
                 border: 'none',
-                backgroundColor: activeDropdown === 'attendance' ? COLORS.primary : 'transparent',
-                color: activeDropdown === 'attendance' ? COLORS.white : COLORS.textLight,
-                fontFamily: TYPOGRAPHY.fontFamily,
+                backgroundColor: activeDropdown === 'attendance' ? '#f5f5f5' : 'transparent',
+                color: activeDropdown === 'attendance' ? COLORS.text : COLORS.textLight,
+            fontFamily: TYPOGRAPHY.fontFamily,
                 fontSize: '15px',
                 cursor: 'pointer',
                 fontWeight: 500,
@@ -533,16 +537,16 @@ const TimePage: React.FC = () => {
                   textAlign: 'left',
                   cursor: 'pointer',
                   fontFamily: TYPOGRAPHY.fontFamily,
-                  color: COLORS.textLight,
+            color: COLORS.textLight,
                   fontSize: '14px',
-                }}
+          }}
                 onMouseEnter={(e) => e.currentTarget.style.backgroundColor = COLORS.lightBg}
                 onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-              >
+        >
                 {item.label}
               </button>
             ))}
-          </div>
+        </div>
         )}
       </div>
 
@@ -558,7 +562,7 @@ const TimePage: React.FC = () => {
             const hasMultiple = reportOptions.length > 1;
             
             return (
-              <button
+          <button
                 onClick={() => {
                   if (hasMultiple) {
                     setReportsOpen(!reportsOpen);
@@ -567,20 +571,20 @@ const TimePage: React.FC = () => {
                     setReportSection('projectReport');
                   }
                 }}
-                style={{
+            style={{
                   padding: '12px 24px',
                   borderRadius: '6px',
-                  border: 'none',
-                  backgroundColor: activeDropdown === 'reports' ? COLORS.primary : 'transparent',
-                  color: activeDropdown === 'reports' ? COLORS.white : COLORS.textLight,
-                  fontFamily: TYPOGRAPHY.fontFamily,
+              border: 'none',
+                  backgroundColor: activeDropdown === 'reports' ? '#f5f5f5' : 'transparent',
+                  color: activeDropdown === 'reports' ? COLORS.text : COLORS.textLight,
+              fontFamily: TYPOGRAPHY.fontFamily,
                   fontSize: '15px',
-                  cursor: 'pointer',
+              cursor: 'pointer',
                   fontWeight: 500,
-                }}
-              >
+            }}
+          >
                 Reports{hasMultiple ? ' ▼' : ''}
-              </button>
+          </button>
             );
           })()}
           {reportsOpen && (
@@ -625,9 +629,9 @@ const TimePage: React.FC = () => {
                   {item.label}
                 </button>
               ))}
-            </div>
-          )}
         </div>
+          )}
+      </div>
       )}
 
       {/* Project Info Dropdown */}
@@ -648,12 +652,12 @@ const TimePage: React.FC = () => {
                   setProjectSection('projects');
                 }
               }}
-              style={{
+        style={{
                 padding: '12px 24px',
                 borderRadius: '6px',
                 border: 'none',
-                backgroundColor: activeDropdown === 'projects' ? COLORS.primary : 'transparent',
-                color: activeDropdown === 'projects' ? COLORS.white : COLORS.textLight,
+                backgroundColor: activeDropdown === 'projects' ? '#f5f5f5' : 'transparent',
+                color: activeDropdown === 'projects' ? COLORS.text : COLORS.textLight,
                 fontFamily: TYPOGRAPHY.fontFamily,
                 fontSize: '15px',
                 cursor: 'pointer',
@@ -670,8 +674,8 @@ const TimePage: React.FC = () => {
             top: '100%',
             left: 0,
             marginTop: '4px',
-            backgroundColor: COLORS.white,
-            border: `1px solid ${COLORS.border}`,
+          backgroundColor: COLORS.white,
+          border: `1px solid ${COLORS.border}`,
             borderRadius: '6px',
             boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
             zIndex: 100,
@@ -687,14 +691,14 @@ const TimePage: React.FC = () => {
                   setProjectSection(item.value);
                   setProjectsOpen(false);
                 }}
-                style={{
+          style={{
                   width: '100%',
                   padding: '10px 16px',
                   border: 'none',
                   backgroundColor: 'transparent',
                   textAlign: 'left',
                   cursor: 'pointer',
-                  fontFamily: TYPOGRAPHY.fontFamily,
+            fontFamily: TYPOGRAPHY.fontFamily,
                   color: COLORS.textLight,
                   fontSize: '14px',
                 }}
@@ -708,6 +712,7 @@ const TimePage: React.FC = () => {
         )}
       </div>
     </div>
+    </>
   );
 
   const renderMyRecords = () => {
@@ -780,7 +785,7 @@ const TimePage: React.FC = () => {
           fontFamily: TYPOGRAPHY.fontFamily,
           color: COLORS.text,
           fontSize: '18px',
-          fontWeight: 600,
+            fontWeight: 600,
         }}>
           My Attendance Records
         </h2>
@@ -818,13 +823,13 @@ const TimePage: React.FC = () => {
           <button
             onClick={handleViewRecords}
             disabled={loading}
-            style={{
+          style={{
               padding: '10px 32px',
               borderRadius: '6px',
               border: 'none',
               backgroundColor: COLORS.primary,
               color: COLORS.white,
-              fontFamily: TYPOGRAPHY.fontFamily,
+            fontFamily: TYPOGRAPHY.fontFamily,
               cursor: loading ? 'not-allowed' : 'pointer',
               fontSize: '15px',
               fontWeight: 500,
@@ -852,9 +857,9 @@ const TimePage: React.FC = () => {
 
         <div style={{ overflowX: 'auto' }}>
           <table style={{
-            width: '100%',
-            borderCollapse: 'collapse',
-            fontFamily: TYPOGRAPHY.fontFamily,
+              width: '100%',
+              borderCollapse: 'collapse',
+              fontFamily: TYPOGRAPHY.fontFamily,
           }}>
             <thead>
               <tr style={{ backgroundColor: COLORS.tableBg }}>
@@ -918,7 +923,7 @@ const TimePage: React.FC = () => {
                         onClick={() => {
                           alert('Edit functionality coming soon. For now, please delete and create a new record.');
                         }}
-                        style={{ 
+                style={{
                           background: 'none', 
                           border: 'none', 
                           cursor: 'pointer', 
@@ -1046,14 +1051,14 @@ const TimePage: React.FC = () => {
               type="date"
               value={punchInForm.date || today}
               onChange={(e) => setPunchInForm({ ...punchInForm, date: e.target.value })}
-              style={{
+                  style={{
                 width: '100%',
                 padding: '10px',
                 border: `1px solid ${COLORS.border}`,
                 borderRadius: '6px',
                 fontFamily: TYPOGRAPHY.fontFamily,
                 backgroundColor: COLORS.white,
-                color: COLORS.text,
+                    color: COLORS.text,
                 boxSizing: 'border-box',
               }}
             />
@@ -1072,14 +1077,14 @@ const TimePage: React.FC = () => {
               type="time"
               value={punchInForm.time || now}
               onChange={(e) => setPunchInForm({ ...punchInForm, time: e.target.value })}
-              style={{
+                  style={{
                 width: '100%',
                 padding: '10px',
                 border: `1px solid ${COLORS.border}`,
                 borderRadius: '6px',
                 fontFamily: TYPOGRAPHY.fontFamily,
                 backgroundColor: COLORS.white,
-                color: COLORS.text,
+                    color: COLORS.text,
                 boxSizing: 'border-box',
               }}
             />
@@ -1101,14 +1106,14 @@ const TimePage: React.FC = () => {
             value={punchInForm.note}
             onChange={(e) => setPunchInForm({ ...punchInForm, note: e.target.value })}
             rows={4}
-            style={{
+                  style={{
               width: '100%',
               padding: '10px',
               border: `1px solid ${COLORS.border}`,
               borderRadius: '6px',
               fontFamily: TYPOGRAPHY.fontFamily,
               backgroundColor: COLORS.white,
-              color: COLORS.text,
+                    color: COLORS.text,
               boxSizing: 'border-box',
               resize: 'vertical',
             }}
@@ -1123,7 +1128,7 @@ const TimePage: React.FC = () => {
           {currentPunchIn ? (
             <button
               onClick={handlePunchOut}
-              style={{
+                  style={{
                 padding: '10px 32px',
                 borderRadius: '6px',
                 border: 'none',
@@ -1140,16 +1145,16 @@ const TimePage: React.FC = () => {
               Out
             </button>
           ) : (
-            <button
+                    <button
               onClick={handlePunchIn}
-              style={{
+                      style={{
                 padding: '10px 32px',
                 borderRadius: '6px',
-                border: 'none',
+                        border: 'none',
                 backgroundColor: COLORS.primary,
-                color: COLORS.white,
-                fontFamily: TYPOGRAPHY.fontFamily,
-                cursor: 'pointer',
+                        color: COLORS.white,
+                        fontFamily: TYPOGRAPHY.fontFamily,
+                        cursor: 'pointer',
                 fontSize: '15px',
                 fontWeight: 500,
               }}
@@ -1279,7 +1284,7 @@ const TimePage: React.FC = () => {
           <tbody>
             {['Test12 .last1234', 'ABDCo 0102', 'yyesjgjkb1 90jxmd', 'a2 a2', 'Mona Ahmed', 'Ranga Akunuri', 'sedfy ali', 'basmala aljdeed', 'basmala aljdeed', 'tasnem alotza'].map((name, idx) => (
               <tr key={idx} style={{ borderBottom: `1px solid ${COLORS.border}` }}>
-                <td style={{ padding: '12px', fontSize: '14px', color: COLORS.primary }}>{name}</td>
+                <td style={{ padding: '12px', fontSize: '14px', color: COLORS.text }}>{name}</td>
                 <td style={{ padding: '12px', fontSize: '14px', color: COLORS.text }}>0.00</td>
                 <td style={{ padding: '12px' }}>
                   <button style={{
@@ -1292,22 +1297,22 @@ const TimePage: React.FC = () => {
                     fontFamily: TYPOGRAPHY.fontFamily,
                     fontSize: '14px',
                   }}>
-                    View
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                      View
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
-    </div>
   );
 
   const renderConfiguration = () => (
     <div style={{
-      backgroundColor: COLORS.white,
+        backgroundColor: COLORS.white,
       borderRadius: '8px',
-      border: `1px solid ${COLORS.border}`,
+        border: `1px solid ${COLORS.border}`,
       padding: '32px',
       boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
       maxWidth: '900px',
@@ -1425,20 +1430,20 @@ const TimePage: React.FC = () => {
           marginBottom: '8px',
           fontFamily: TYPOGRAPHY.fontFamily,
           fontSize: '14px',
-          color: COLORS.primary,
+          color: COLORS.text,
         }}>
           Project Name*
         </label>
         <input
           type="text"
           placeholder="Type for hints..."
-          style={{
+        style={{
             width: '100%',
             maxWidth: '700px',
             padding: '10px',
             border: `1px solid ${COLORS.border}`,
             borderRadius: '6px',
-            fontFamily: TYPOGRAPHY.fontFamily,
+          fontFamily: TYPOGRAPHY.fontFamily,
             boxSizing: 'border-box',
           }}
         />
@@ -1450,7 +1455,7 @@ const TimePage: React.FC = () => {
           marginBottom: '8px',
           fontFamily: TYPOGRAPHY.fontFamily,
           fontSize: '14px',
-          color: COLORS.primary,
+          color: COLORS.text,
         }}>
           Project Date Range
         </label>
@@ -1458,7 +1463,7 @@ const TimePage: React.FC = () => {
           <input
             type="date"
             placeholder="From"
-            style={{
+          style={{
               padding: '10px',
               border: `1px solid ${COLORS.border}`,
               borderRadius: '6px',
@@ -1480,7 +1485,7 @@ const TimePage: React.FC = () => {
             }}
           />
           <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: '16px' }}>
-            <span style={{ fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.primary }}>
+            <span style={{ fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.text }}>
               Only Include Approved Timesheets
             </span>
             <input type="checkbox" style={{ width: '40px', height: '20px' }} />
@@ -1512,7 +1517,7 @@ const TimePage: React.FC = () => {
 
   const renderEmployeeReport = () => (
     <div style={{
-      backgroundColor: COLORS.white,
+              backgroundColor: COLORS.white,
       borderRadius: '8px',
       border: `1px solid ${COLORS.border}`,
       padding: '32px',
@@ -1531,12 +1536,12 @@ const TimePage: React.FC = () => {
         <button style={{
           background: 'none',
           border: 'none',
-          cursor: 'pointer',
+              cursor: 'pointer',
           fontSize: '18px',
           color: COLORS.textLight,
         }}>
           ▲
-        </button>
+          </button>
       </div>
       
       <div style={{ marginBottom: '20px' }}>
@@ -1545,20 +1550,20 @@ const TimePage: React.FC = () => {
           marginBottom: '8px',
           fontFamily: TYPOGRAPHY.fontFamily,
           fontSize: '14px',
-          color: COLORS.primary,
+          color: COLORS.text,
         }}>
           Employee Name*
         </label>
-        <input
-          type="text"
+          <input
+            type="text"
           placeholder="Type for hints..."
-          style={{
+            style={{
             width: '100%',
             maxWidth: '700px',
             padding: '10px',
-            border: `1px solid ${COLORS.border}`,
+              border: `1px solid ${COLORS.border}`,
             borderRadius: '6px',
-            fontFamily: TYPOGRAPHY.fontFamily,
+              fontFamily: TYPOGRAPHY.fontFamily,
             boxSizing: 'border-box',
           }}
         />
@@ -1571,7 +1576,7 @@ const TimePage: React.FC = () => {
             marginBottom: '8px',
             fontFamily: TYPOGRAPHY.fontFamily,
             fontSize: '14px',
-            color: COLORS.primary,
+            color: COLORS.text,
           }}>
             Project Name
           </label>
@@ -1594,7 +1599,7 @@ const TimePage: React.FC = () => {
             marginBottom: '8px',
             fontFamily: TYPOGRAPHY.fontFamily,
             fontSize: '14px',
-            color: COLORS.primary,
+            color: COLORS.text,
           }}>
             Activity Name
           </label>
@@ -1604,7 +1609,7 @@ const TimePage: React.FC = () => {
             border: `1px solid ${COLORS.border}`,
             borderRadius: '6px',
             fontFamily: TYPOGRAPHY.fontFamily,
-            backgroundColor: COLORS.white,
+              backgroundColor: COLORS.white,
             boxSizing: 'border-box',
           }}>
             <option>-- Select --</option>
@@ -1618,7 +1623,7 @@ const TimePage: React.FC = () => {
           marginBottom: '8px',
           fontFamily: TYPOGRAPHY.fontFamily,
           fontSize: '14px',
-          color: COLORS.primary,
+          color: COLORS.text,
         }}>
           Project Date Range
         </label>
@@ -1648,7 +1653,7 @@ const TimePage: React.FC = () => {
             }}
           />
           <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: '16px' }}>
-            <span style={{ fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.primary }}>
+            <span style={{ fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.text }}>
               Only Include Approved Timesheets
             </span>
             <input type="checkbox" style={{ width: '40px', height: '20px' }} />
@@ -1673,9 +1678,9 @@ const TimePage: React.FC = () => {
           fontWeight: 500,
         }}>
           View
-        </button>
+          </button>
+        </div>
       </div>
-    </div>
   );
 
   const renderAttendanceSummary = () => (
@@ -1721,12 +1726,12 @@ const TimePage: React.FC = () => {
           <input
             type="text"
             placeholder="Type for hints..."
-            style={{
-              width: '100%',
+          style={{
+            width: '100%',
               padding: '10px',
               border: `1px solid ${COLORS.border}`,
               borderRadius: '6px',
-              fontFamily: TYPOGRAPHY.fontFamily,
+            fontFamily: TYPOGRAPHY.fontFamily,
               boxSizing: 'border-box',
             }}
           />
@@ -1737,7 +1742,7 @@ const TimePage: React.FC = () => {
             marginBottom: '8px',
             fontFamily: TYPOGRAPHY.fontFamily,
             fontSize: '14px',
-            color: COLORS.primary,
+            color: COLORS.text,
           }}>
             Job Title
           </label>
@@ -1759,7 +1764,7 @@ const TimePage: React.FC = () => {
             marginBottom: '8px',
             fontFamily: TYPOGRAPHY.fontFamily,
             fontSize: '14px',
-            color: COLORS.primary,
+            color: COLORS.text,
           }}>
             Sub Unit
           </label>
@@ -1784,7 +1789,7 @@ const TimePage: React.FC = () => {
             marginBottom: '8px',
             fontFamily: TYPOGRAPHY.fontFamily,
             fontSize: '14px',
-            color: COLORS.primary,
+            color: COLORS.text,
           }}>
             Employment Status
           </label>
@@ -1806,9 +1811,9 @@ const TimePage: React.FC = () => {
             marginBottom: '8px',
             fontFamily: TYPOGRAPHY.fontFamily,
             fontSize: '14px',
-            color: COLORS.primary,
-          }}>
-            Date Range
+          color: COLORS.text,
+        }}>
+          Date Range
           </label>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             <input
@@ -1939,7 +1944,7 @@ const TimePage: React.FC = () => {
       return matchesProject && matchesAdmin;
     });
 
-    return (
+                return (
       <>
         <div style={{
           backgroundColor: COLORS.white,
@@ -1975,7 +1980,7 @@ const TimePage: React.FC = () => {
                 placeholder="Type for hints..."
                 value={projectFilters.project}
                 onChange={(e) => setProjectFilters({ ...projectFilters, project: e.target.value })}
-                style={{
+                      style={{
                   width: '100%',
                   padding: '10px',
                   border: `1px solid ${COLORS.border}`,
@@ -1984,7 +1989,7 @@ const TimePage: React.FC = () => {
                   boxSizing: 'border-box',
                 }}
               />
-            </div>
+                    </div>
             <div>
               <label style={{
                 display: 'block',
@@ -2018,9 +2023,9 @@ const TimePage: React.FC = () => {
               style={{
                 padding: '10px 24px',
                 borderRadius: '6px',
-                border: `1px solid ${COLORS.primary}`,
+                border: `1px solid ${COLORS.border}`,
                 backgroundColor: 'transparent',
-                color: COLORS.primary,
+                color: COLORS.text,
                 fontFamily: TYPOGRAPHY.fontFamily,
                 cursor: 'pointer',
               }}>
@@ -2080,7 +2085,7 @@ const TimePage: React.FC = () => {
                   {isAdminUser && (
                     <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', color: COLORS.text, borderBottom: `1px solid ${COLORS.border}` }}>
                       <input type="checkbox" />
-                    </th>
+                  </th>
                   )}
                   <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', color: COLORS.text, borderBottom: `1px solid ${COLORS.border}` }}>
                     Project ⇅
@@ -2091,15 +2096,15 @@ const TimePage: React.FC = () => {
                   <th style={{ padding: '12px', textAlign: 'right', fontSize: '13px', color: COLORS.text, borderBottom: `1px solid ${COLORS.border}` }}>
                     Actions
                   </th>
-                </tr>
-              </thead>
-              <tbody>
+            </tr>
+          </thead>
+          <tbody>
                 {filteredProjects.length === 0 ? (
-                  <tr>
+            <tr>
                     <td colSpan={isAdminUser ? 4 : 3} style={{ padding: '40px', textAlign: 'center', color: COLORS.textLight }}>
                       No projects found.
-                    </td>
-                  </tr>
+              </td>
+            </tr>
                 ) : (
                   filteredProjects.map((project) => {
                     return (
@@ -2133,10 +2138,10 @@ const TimePage: React.FC = () => {
                     );
                   })
                 )}
-              </tbody>
-            </table>
+          </tbody>
+        </table>
           </div>
-        </div>
+      </div>
 
         {showProjectModal && (
           <div style={{
@@ -2146,8 +2151,8 @@ const TimePage: React.FC = () => {
             right: 0,
             bottom: 0,
             backgroundColor: 'rgba(0,0,0,0.5)',
-            display: 'flex',
-            alignItems: 'center',
+          display: 'flex',
+          alignItems: 'center',
             justifyContent: 'center',
             zIndex: 1000,
           }} onClick={() => setShowProjectModal(false)}>
@@ -2174,7 +2179,7 @@ const TimePage: React.FC = () => {
                     padding: '10px',
                     border: `1px solid ${COLORS.border}`,
                     borderRadius: '6px',
-                    fontFamily: TYPOGRAPHY.fontFamily,
+          fontFamily: TYPOGRAPHY.fontFamily,
                     boxSizing: 'border-box',
                   }}
                 />
@@ -2223,37 +2228,37 @@ const TimePage: React.FC = () => {
                     <option value="" disabled>No employees available</option>
                   )}
                 </select>
-              </div>
+        </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-                <button
+          <button
                   onClick={() => setShowProjectModal(false)}
-                  style={{
+            style={{
                     padding: '10px 24px',
                     borderRadius: '6px',
                     border: `1px solid ${COLORS.border}`,
-                    backgroundColor: COLORS.white,
+              backgroundColor: COLORS.white,
                     color: COLORS.text,
-                    fontFamily: TYPOGRAPHY.fontFamily,
-                    cursor: 'pointer',
+              fontFamily: TYPOGRAPHY.fontFamily,
+              cursor: 'pointer',
                   }}>
                   Cancel
-                </button>
-                <button
+          </button>
+          <button
                   onClick={handleSave}
-                  style={{
+            style={{
                     padding: '10px 24px',
                     borderRadius: '6px',
-                    border: 'none',
+              border: 'none',
                     backgroundColor: COLORS.primary,
-                    color: COLORS.white,
-                    fontFamily: TYPOGRAPHY.fontFamily,
-                    cursor: 'pointer',
+              color: COLORS.white,
+              fontFamily: TYPOGRAPHY.fontFamily,
+              cursor: 'pointer',
                   }}>
                   Save
-                </button>
-              </div>
-            </div>
-          </div>
+          </button>
+        </div>
+      </div>
+    </div>
         )}
       </>
     );
@@ -2437,8 +2442,8 @@ const TimePage: React.FC = () => {
       }, 0);
     });
     const grandTotal = Object.values(rowTotals).reduce((sum, total) => sum + total, 0);
-    
-    return (
+
+  return (
     <div style={{
       backgroundColor: COLORS.cardBg,
       borderRadius: '8px',
@@ -2457,12 +2462,12 @@ const TimePage: React.FC = () => {
           My Timesheet
         </h2>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <span style={{ fontFamily: TYPOGRAPHY.fontFamily, color: COLORS.primary, fontSize: '14px', fontWeight: 500 }}>
+          <span style={{ fontFamily: TYPOGRAPHY.fontFamily, color: COLORS.text, fontSize: '14px', fontWeight: 500 }}>
             Timesheet Period
           </span>
           <button
             onClick={() => navigateWeek('prev')}
-            style={{
+      style={{
               padding: '8px 12px',
               border: `1px solid ${COLORS.border}`,
               backgroundColor: COLORS.white,
@@ -2487,16 +2492,16 @@ const TimePage: React.FC = () => {
               ? `${formatDateDisplay(new Date(timesheetPeriod.start))} to ${formatDateDisplay(new Date(timesheetPeriod.end))}`
               : 'Select Period'}
           </span>
-          <button
+      <button
             onClick={() => navigateWeek('next')}
-            style={{
+        style={{
               padding: '8px 12px',
               border: `1px solid ${COLORS.border}`,
               backgroundColor: COLORS.white,
-              cursor: 'pointer',
+          cursor: 'pointer',
               borderRadius: '4px',
               color: COLORS.text,
-              fontFamily: TYPOGRAPHY.fontFamily,
+          fontFamily: TYPOGRAPHY.fontFamily,
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.backgroundColor = COLORS.primary;
@@ -2508,7 +2513,7 @@ const TimePage: React.FC = () => {
             }}
           >
             ▶
-          </button>
+      </button>
         </div>
       </div>
 
@@ -2536,13 +2541,13 @@ const TimePage: React.FC = () => {
                     alert(`Failed to create timesheet: ${err.message || 'Unknown error'}`);
                   }
                 }}
-                style={{
+        style={{
                   padding: '8px 16px',
                   borderRadius: '6px',
                   border: 'none',
                   backgroundColor: COLORS.primary,
                   color: COLORS.white,
-                  fontFamily: TYPOGRAPHY.fontFamily,
+          fontFamily: TYPOGRAPHY.fontFamily,
                   cursor: 'pointer',
                   fontSize: '14px',
                 }}
@@ -2555,30 +2560,30 @@ const TimePage: React.FC = () => {
           {currentTimesheet && (
             <>
               <div style={{ marginBottom: '16px', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-                <button
-                  onClick={() => {
+              <button
+                onClick={() => {
                     if (!projects || projects.length === 0) {
                       alert('No projects available. Create projects in Project Info section first.');
                       return;
                     }
                     setShowProjectSelectModal(true);
-                  }}
-                  style={{
+                }}
+                style={{
                     padding: '8px 20px',
                     borderRadius: '6px',
                     border: `1px solid ${COLORS.primary}`,
                     backgroundColor: COLORS.primary,
                     color: COLORS.white,
-                    fontFamily: TYPOGRAPHY.fontFamily,
+                  fontFamily: TYPOGRAPHY.fontFamily,
                     fontSize: '14px',
-                    cursor: 'pointer',
+                  cursor: 'pointer',
                     fontWeight: 500,
-                  }}
+                }}
                   onMouseEnter={(e) => e.currentTarget.style.backgroundColor = COLORS.primaryHover}
                   onMouseLeave={(e) => e.currentTarget.style.backgroundColor = COLORS.primary}
-                >
+              >
                   + Add Project/Activity
-                </button>
+              </button>
                 {projects && projects.length > 0 && (
                   <span style={{ fontSize: '12px', color: COLORS.textLight, fontFamily: TYPOGRAPHY.fontFamily }}>
                     ({projects.length} projects available)
@@ -2591,7 +2596,7 @@ const TimePage: React.FC = () => {
                 <div style={{
                   position: 'fixed',
                   top: 0,
-                  left: 0,
+                    left: 0,
                   right: 0,
                   bottom: 0,
                   backgroundColor: 'rgba(0,0,0,0.5)',
@@ -2648,7 +2653,7 @@ const TimePage: React.FC = () => {
                               style={{
                                 padding: '12px 16px',
                                 borderRadius: '6px',
-                                border: `1px solid ${COLORS.border}`,
+                    border: `1px solid ${COLORS.border}`,
                                 backgroundColor: COLORS.white,
                                 color: COLORS.text,
                                 fontFamily: TYPOGRAPHY.fontFamily,
@@ -2679,15 +2684,15 @@ const TimePage: React.FC = () => {
                     <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                       <button
                         onClick={() => setShowProjectSelectModal(false)}
-                        style={{
+                      style={{
                           padding: '10px 24px',
                           borderRadius: '6px',
                           border: `1px solid ${COLORS.border}`,
                           backgroundColor: COLORS.white,
-                          color: COLORS.text,
+                        color: COLORS.text,
                           fontFamily: TYPOGRAPHY.fontFamily,
-                          cursor: 'pointer',
-                        }}
+                        cursor: 'pointer',
+                      }}
                       >
                         Cancel
                       </button>
@@ -2716,7 +2721,7 @@ const TimePage: React.FC = () => {
                           <div style={{ fontSize: '11px', fontWeight: 'normal' }}>{dayNames[date.getDay()]}</div>
                         </th>
                       ))}
-                      <th style={{ padding: '12px', textAlign: 'center', fontSize: '13px', color: COLORS.text, border: `1px solid ${COLORS.border}`, backgroundColor: COLORS.primary, color: COLORS.white }}>
+                      <th style={{ padding: '12px', textAlign: 'center', fontSize: '13px', color: COLORS.text, border: `1px solid ${COLORS.border}`, backgroundColor: '#f5f5f5', fontWeight: 600 }}>
                         Total
                       </th>
                     </tr>
@@ -2918,8 +2923,8 @@ const TimePage: React.FC = () => {
                                   >
                                     ×
                                   </button>
-                                )}
-                              </div>
+              )}
+            </div>
                             </td>
                             <td style={{ padding: '12px', fontSize: '14px', color: COLORS.text, border: `1px solid ${COLORS.border}` }}>
                               {group.activity_name}
@@ -2943,9 +2948,9 @@ const TimePage: React.FC = () => {
                                     </span>
                                   )}
                                 </td>
-                              );
-                            })}
-                            <td style={{ padding: '12px', textAlign: 'center', fontSize: '14px', color: COLORS.primary, border: `1px solid ${COLORS.border}`, backgroundColor: COLORS.tableBg, fontWeight: 600 }}>
+          );
+        })}
+                            <td style={{ padding: '12px', textAlign: 'center', fontSize: '14px', color: COLORS.text, border: `1px solid ${COLORS.border}`, backgroundColor: COLORS.tableBg, fontWeight: 600 }}>
                               {formatHours(rowTotals[key] || 0)}
                             </td>
                           </tr>
@@ -2959,23 +2964,23 @@ const TimePage: React.FC = () => {
                       {weekDates.map((date, idx) => {
                         const dateStr = formatDate(date);
                         return (
-                          <td key={idx} style={{ padding: '12px', textAlign: 'center', fontSize: '14px', color: COLORS.primary, border: `1px solid ${COLORS.border}`, fontWeight: 600 }}>
+                          <td key={idx} style={{ padding: '12px', textAlign: 'center', fontSize: '14px', color: COLORS.text, border: `1px solid ${COLORS.border}`, fontWeight: 600 }}>
                             {formatHours(dayTotals[dateStr] || 0)}
                           </td>
                         );
                       })}
-                      <td style={{ padding: '12px', textAlign: 'center', fontSize: '14px', color: COLORS.primary, border: `1px solid ${COLORS.border}`, backgroundColor: COLORS.primary, color: COLORS.white, fontWeight: 600 }}>
+                      <td style={{ padding: '12px', textAlign: 'center', fontSize: '14px', color: COLORS.text, border: `1px solid ${COLORS.border}`, backgroundColor: '#f5f5f5', fontWeight: 600 }}>
                         {formatHours(grandTotal)}
                       </td>
                     </tr>
                   </tbody>
                 </table>
-              </div>
+      </div>
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.textLight }}>
                   Status: <span style={{ 
-                    color: currentTimesheet.status === 'submitted' ? COLORS.primary : 
+                    color: currentTimesheet.status === 'submitted' ? COLORS.text : 
                            currentTimesheet.status === 'approved' ? COLORS.primary : 
                            currentTimesheet.status === 'rejected' ? COLORS.danger : COLORS.text,
                     fontWeight: 600 
@@ -2995,21 +3000,21 @@ const TimePage: React.FC = () => {
                           style={{
                             padding: '10px 32px',
                             borderRadius: '6px',
-                            border: `1px solid ${COLORS.primary}`,
+                            border: `1px solid ${COLORS.border}`,
                             backgroundColor: 'transparent',
-                            color: COLORS.primary,
+                            color: COLORS.text,
                             fontFamily: TYPOGRAPHY.fontFamily,
                             cursor: 'pointer',
                             fontSize: '15px',
                             fontWeight: 500,
                           }}
                           onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = COLORS.primaryHover;
-                            e.currentTarget.style.color = COLORS.white;
+                            e.currentTarget.style.backgroundColor = '#f5f5f5';
+                            e.currentTarget.style.color = COLORS.text;
                           }}
                           onMouseLeave={(e) => {
                             e.currentTarget.style.backgroundColor = 'transparent';
-                            e.currentTarget.style.color = COLORS.primary;
+                            e.currentTarget.style.color = COLORS.text;
                           }}
                         >
                           Edit
@@ -3017,13 +3022,13 @@ const TimePage: React.FC = () => {
                       ) : (
                         <button
                           onClick={handleSaveAll}
-                          style={{
+          style={{
                             padding: '10px 32px',
                             borderRadius: '6px',
                             border: 'none',
                             backgroundColor: COLORS.primary,
                             color: COLORS.white,
-                            fontFamily: TYPOGRAPHY.fontFamily,
+            fontFamily: TYPOGRAPHY.fontFamily,
                             cursor: 'pointer',
                             fontSize: '15px',
                             fontWeight: 500,
@@ -3056,15 +3061,15 @@ const TimePage: React.FC = () => {
                       Submit
                     </button>
                   )}
-                </div>
+        </div>
               </div>
             </>
           )}
         </>
       )}
     </div>
-    );
-  };
+  );
+};
 
   const renderEmployeeTimesheets = () => (
     <div style={{
@@ -3178,7 +3183,7 @@ const TimePage: React.FC = () => {
                 { name: 'Madhumita k K', period: '2020-14-09 - 2020-20-09' },
               ].map((record, idx) => (
                 <tr key={idx} style={{ borderBottom: `1px solid ${COLORS.border}` }}>
-                  <td style={{ padding: '12px', fontSize: '14px', color: COLORS.primary }}>{record.name}</td>
+                  <td style={{ padding: '12px', fontSize: '14px', color: COLORS.text }}>{record.name}</td>
                   <td style={{ padding: '12px', fontSize: '14px', color: COLORS.text }}>{record.period}</td>
                   <td style={{ padding: '12px' }}>
                     <button style={{

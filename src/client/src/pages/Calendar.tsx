@@ -5,7 +5,7 @@ const Calendar: React.FC = () => {
   const navigate = useNavigate();
 
   return (
-    <div style={{ padding: '24px 20px', maxWidth: '1400px', margin: '0 auto', backgroundColor: '#faf3ff', minHeight: 'calc(100vh - 80px)' }}>
+    <div style={{ padding: '24px 20px', maxWidth: '1400px', margin: '0 auto', backgroundColor: '#f9f9f9', minHeight: 'calc(100vh - 80px)' }}>
       <button
         onClick={() => navigate('/dashboard')}
         style={{
@@ -24,12 +24,12 @@ const Calendar: React.FC = () => {
         ← Back to Dashboard
       </button>
       
-      <h1 style={{ color: '#78176b', fontSize: '2rem', fontFamily: "'Segoe UI', Arial, sans-serif", fontWeight: 500, marginBottom: '24px', marginTop: 0 }}>
+      <h1 style={{ color: '#333333', fontSize: '2rem', fontFamily: "'Segoe UI', Arial, sans-serif", fontWeight: 500, marginBottom: '24px', marginTop: 0 }}>
         Calendar
       </h1>
       
       <div style={{
-        backgroundColor: '#fffafe',
+        backgroundColor: '#ffffff',
         padding: '24px',
         borderRadius: '8px',
         border: '1px solid #e0e0e0',

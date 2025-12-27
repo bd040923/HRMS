@@ -36,3 +36,5 @@ WHERE grantee = 'bhushan'
 AND table_schema = 'hrms_data'
 ORDER BY table_name, privilege_type;
 
+
+

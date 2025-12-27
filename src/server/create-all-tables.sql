@@ -13,3 +13,5 @@ CREATE SCHEMA IF NOT EXISTS hrms_data;
 -- 1. Copy the entire content of that file here, OR
 -- 2. Run it directly using: \i path/to/complete_schema_postgresql.sql
 
+
+

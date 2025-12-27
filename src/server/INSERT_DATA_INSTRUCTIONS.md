@@ -47,3 +47,5 @@ If the Node.js script fails:
 If you get permission errors:
 - Run `fix-permissions.sql` as `postgres` user
 
+
+

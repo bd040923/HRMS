@@ -26,3 +26,5 @@ if ($connection) {
     Write-Host "You can start the server now." -ForegroundColor Cyan
 }
 
+
+

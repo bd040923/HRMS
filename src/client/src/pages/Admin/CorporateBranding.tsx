@@ -17,8 +17,8 @@ const COLORS = {
   textLight: '#666666',
   border: '#e0e0e0',
   lightBg: '#f9f9f9',
-  lightBgMain: '#faf3ff',
-  lightBgAlt: '#fffafe',
+  lightBgMain: '#f9f9f9',
+  lightBgAlt: '#f9f9f9',
 };
 
 const TYPOGRAPHY = {

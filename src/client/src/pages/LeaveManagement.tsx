@@ -7,20 +7,21 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiService } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import BackToDashboard from '../components/BackToDashboard';
 
 const COLORS = {
   // Strict color palette for Leave Portal
   primary: '#78176b',        // Primary brand color
   primaryHover: '#590a4f',   // Hover/active/emphasis
   lightBg: '#f9f9f9',        // Page background
-  cardBg: '#faf3ff',         // Primary card background
-  cardBgSecondary: '#fffafe', // Secondary card background
+  cardBg: '#ffffff',         // White card background (minimalistic)
+  cardBgSecondary: '#f9f9f9', // Light gray secondary card background
   white: '#ffffff',
   text: '#222',              // All text
   textLight: '#666666',
   border: '#e0e0e0',
   tableBg: '#f7f7f7',
-  activeTab: '#78176b',
+  activeTab: '#f5f5f5', // Subtle gray for navigation tabs
   // Legacy colors (for other sections)
   success: '#78176b',
   danger: '#dc3545',
@@ -314,7 +315,7 @@ const LeaveManagement: React.FC = () => {
           borderRadius: '6px',
           border: 'none',
           backgroundColor: activeSection === 'apply' ? COLORS.activeTab : 'transparent',
-          color: activeSection === 'apply' ? COLORS.white : COLORS.textLight,
+          color: activeSection === 'apply' ? COLORS.text : COLORS.textLight,
           fontFamily: TYPOGRAPHY.fontFamily,
           fontSize: '15px',
           cursor: 'pointer',
@@ -331,7 +332,7 @@ const LeaveManagement: React.FC = () => {
           borderRadius: '6px',
           border: 'none',
           backgroundColor: activeSection === 'myLeave' ? COLORS.activeTab : 'transparent',
-          color: activeSection === 'myLeave' ? COLORS.white : COLORS.textLight,
+          color: activeSection === 'myLeave' ? COLORS.text : COLORS.textLight,
           fontFamily: TYPOGRAPHY.fontFamily,
           fontSize: '15px',
           cursor: 'pointer',
@@ -351,7 +352,7 @@ const LeaveManagement: React.FC = () => {
               borderRadius: '6px',
               border: 'none',
               backgroundColor: ['addEntitlements', 'employeeEntitlements', 'myEntitlements'].includes(activeSection) ? COLORS.activeTab : 'transparent',
-              color: ['addEntitlements', 'employeeEntitlements', 'myEntitlements'].includes(activeSection) ? COLORS.white : COLORS.textLight,
+              color: ['addEntitlements', 'employeeEntitlements', 'myEntitlements'].includes(activeSection) ? COLORS.text : COLORS.textLight,
               fontFamily: TYPOGRAPHY.fontFamily,
               fontSize: '15px',
               cursor: 'pointer',
@@ -366,8 +367,8 @@ const LeaveManagement: React.FC = () => {
               top: '100%',
               left: 0,
               marginTop: '4px',
-              backgroundColor: COLORS.white,
-              border: `1px solid ${COLORS.border}`,
+          backgroundColor: COLORS.white,
+          border: `1px solid ${COLORS.border}`,
               borderRadius: '6px',
               boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
               zIndex: 100,
@@ -413,7 +414,7 @@ const LeaveManagement: React.FC = () => {
           borderRadius: '6px',
           border: 'none',
           backgroundColor: activeSection === 'myLeaveReport' ? COLORS.activeTab : 'transparent',
-          color: activeSection === 'myLeaveReport' ? COLORS.white : COLORS.textLight,
+          color: activeSection === 'myLeaveReport' ? COLORS.text : COLORS.textLight,
             fontFamily: TYPOGRAPHY.fontFamily,
           fontSize: '15px',
           cursor: 'pointer',
@@ -432,7 +433,7 @@ const LeaveManagement: React.FC = () => {
               borderRadius: '6px',
               border: 'none',
               backgroundColor: ['leavePeriod', 'leaveTypes', 'workWeek', 'holidays'].includes(activeSection) ? COLORS.activeTab : 'transparent',
-              color: ['leavePeriod', 'leaveTypes', 'workWeek', 'holidays'].includes(activeSection) ? COLORS.white : COLORS.textLight,
+              color: ['leavePeriod', 'leaveTypes', 'workWeek', 'holidays'].includes(activeSection) ? COLORS.text : COLORS.textLight,
               fontFamily: TYPOGRAPHY.fontFamily,
               fontSize: '15px',
               cursor: 'pointer',
@@ -497,7 +498,7 @@ const LeaveManagement: React.FC = () => {
               borderRadius: '6px',
               border: 'none',
               backgroundColor: activeSection === 'leaveList' ? COLORS.activeTab : 'transparent',
-              color: activeSection === 'leaveList' ? COLORS.white : COLORS.textLight,
+              color: activeSection === 'leaveList' ? COLORS.text : COLORS.textLight,
               fontFamily: TYPOGRAPHY.fontFamily,
               fontSize: '15px',
               cursor: 'pointer',
@@ -514,14 +515,14 @@ const LeaveManagement: React.FC = () => {
               borderRadius: '6px',
               border: 'none',
               backgroundColor: activeSection === 'assignLeave' ? COLORS.activeTab : 'transparent',
-              color: activeSection === 'assignLeave' ? COLORS.white : COLORS.textLight,
+              color: activeSection === 'assignLeave' ? COLORS.text : COLORS.textLight,
               fontFamily: TYPOGRAPHY.fontFamily,
               fontSize: '15px',
               cursor: 'pointer',
               fontWeight: 500,
             }}
           >
-            Assign Leave
+            Declare Holidays
           </button>
         </>
       )}
@@ -771,7 +772,7 @@ const LeaveManagement: React.FC = () => {
   const renderMyLeave = () => (
     <div style={{
       backgroundColor: COLORS.white,
-      borderRadius: '8px',
+                  borderRadius: '8px',
       border: `1px solid ${COLORS.border}`,
       padding: '32px',
       boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
@@ -806,11 +807,11 @@ const LeaveManagement: React.FC = () => {
               padding: '10px',
                 border: `1px solid ${COLORS.border}`,
               borderRadius: '6px',
-                fontFamily: TYPOGRAPHY.fontFamily,
-              boxSizing: 'border-box',
-            }}
-          />
-        </div>
+                  fontFamily: TYPOGRAPHY.fontFamily,
+                  boxSizing: 'border-box',
+                }}
+              />
+            </div>
         <div>
           <label style={{
             display: 'block',
@@ -1027,7 +1028,7 @@ const LeaveManagement: React.FC = () => {
         marginTop: 0,
         marginBottom: '24px',
         fontFamily: TYPOGRAPHY.fontFamily,
-        color: COLORS.text,
+                color: COLORS.text,
         fontSize: '18px',
         fontWeight: 600,
       }}>
@@ -1108,7 +1109,7 @@ const LeaveManagement: React.FC = () => {
           }}>
             Leave Period*
             </label>
-          <select 
+            <select
             value={reportFilters.leavePeriod}
             onChange={(e) => setReportFilters({ ...reportFilters, leavePeriod: e.target.value })}
               style={{
@@ -1117,7 +1118,7 @@ const LeaveManagement: React.FC = () => {
                 border: `1px solid ${COLORS.border}`,
               borderRadius: '6px',
                 fontFamily: TYPOGRAPHY.fontFamily,
-              backgroundColor: COLORS.white,
+                backgroundColor: COLORS.white,
                 boxSizing: 'border-box',
               }}
           >
@@ -1151,8 +1152,8 @@ const LeaveManagement: React.FC = () => {
             backgroundColor: COLORS.white,
             boxSizing: 'border-box',
           }}>
-            <option>-- Select --</option>
-          </select>
+              <option>-- Select --</option>
+            </select>
         </div>
         <div>
           <label style={{
@@ -1410,7 +1411,7 @@ const LeaveManagement: React.FC = () => {
           marginTop: 0,
           marginBottom: '24px',
           fontFamily: TYPOGRAPHY.fontFamily,
-          color: COLORS.text,
+                color: COLORS.text,
           fontSize: '18px',
           fontWeight: 600,
         }}>
@@ -1446,8 +1447,8 @@ const LeaveManagement: React.FC = () => {
                   padding: '8px 12px',
                   border: `1px solid ${COLORS.border}`,
                   borderRadius: '6px',
-                  backgroundColor: yearType === 'calendar' ? COLORS.primary : COLORS.white,
-                  color: yearType === 'calendar' ? COLORS.white : COLORS.text,
+                  backgroundColor: yearType === 'calendar' ? '#f5f5f5' : COLORS.white,
+                  color: yearType === 'calendar' ? COLORS.text : COLORS.text,
                   fontFamily: TYPOGRAPHY.fontFamily,
                   fontSize: '13px',
                   cursor: 'pointer',
@@ -1462,8 +1463,8 @@ const LeaveManagement: React.FC = () => {
                   padding: '8px 12px',
                   border: `1px solid ${COLORS.border}`,
                   borderRadius: '6px',
-                  backgroundColor: yearType === 'financial' ? COLORS.primary : COLORS.white,
-                  color: yearType === 'financial' ? COLORS.white : COLORS.text,
+                  backgroundColor: yearType === 'financial' ? '#f5f5f5' : COLORS.white,
+                  color: yearType === 'financial' ? COLORS.text : COLORS.text,
                   fontFamily: TYPOGRAPHY.fontFamily,
                   fontSize: '13px',
                   cursor: 'pointer',
@@ -1518,9 +1519,9 @@ const LeaveManagement: React.FC = () => {
             <label style={{
               display: 'block',
               marginBottom: '8px',
-              fontFamily: TYPOGRAPHY.fontFamily,
+                fontFamily: TYPOGRAPHY.fontFamily,
               fontSize: '14px',
-              color: COLORS.text,
+                color: COLORS.text,
               fontWeight: 500,
             }}>
               Month*
@@ -1559,7 +1560,7 @@ const LeaveManagement: React.FC = () => {
               <option value="12">December</option>
             </select>
           </div>
-        </div>
+          </div>
 
         {/* Last Updated Timestamp */}
         {lastUpdated && (
@@ -1622,14 +1623,14 @@ const LeaveManagement: React.FC = () => {
                         padding: 20px;
                         background: #fff;
                       }
-                      h1 { color: #78176b; margin-bottom: 20px; }
+                      h1 { color: #333333; margin-bottom: 20px; }
                       h2 { color: #222; margin-top: 30px; margin-bottom: 15px; }
                       table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
                       th, td { padding: 10px; text-align: left; border: 1px solid #e0e0e0; }
                       th { background: #f7f7f7; font-weight: 600; }
-                      .card { background: #faf3ff; padding: 15px; margin: 10px 0; border-radius: 6px; border: 1px solid #e0e0e0; }
+                      .card { background: #ffffff; padding: 15px; margin: 10px 0; border-radius: 6px; border: 1px solid #e0e0e0; }
                       .card-title { font-size: 14px; color: #666; margin-bottom: 8px; }
-                      .card-value { font-size: 20px; font-weight: 600; color: #78176b; }
+                      .card-value { font-size: 20px; font-weight: 600; color: #333333; }
                     </style>
                   </head>
                   <body>
@@ -1731,8 +1732,8 @@ const LeaveManagement: React.FC = () => {
                 gap: '6px',
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = COLORS.primary;
-                e.currentTarget.style.color = COLORS.white;
+                e.currentTarget.style.backgroundColor = '#f5f5f5';
+                e.currentTarget.style.color = COLORS.text;
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.backgroundColor = COLORS.white;
@@ -1778,7 +1779,7 @@ const LeaveManagement: React.FC = () => {
                     fontSize: '13px',
                     color: COLORS.textLight,
                     marginBottom: '12px',
-                    fontWeight: 500,
+                fontWeight: 500,
                   }}>
                     {summary.leave_type_name}
                   </div>
@@ -1786,18 +1787,18 @@ const LeaveManagement: React.FC = () => {
                     fontFamily: TYPOGRAPHY.fontFamily,
                     fontSize: '20px',
                     fontWeight: 600,
-                    color: COLORS.text,
+                color: COLORS.text,
                     marginBottom: '8px',
                     display: 'flex',
                     alignItems: 'baseline',
                     gap: '8px',
                   }}>
-                    <span style={{ color: COLORS.primary }}>{used.toFixed(0)}</span>
+                    <span style={{ color: COLORS.text }}>{used.toFixed(0)}</span>
                     <span style={{ color: COLORS.textLight }}>|</span>
                     <span style={{ color: COLORS.text }}>{total.toFixed(0)}</span>
                     <span style={{ color: COLORS.textLight }}>|</span>
                     <span style={{ 
-                      color: COLORS.primary,
+                      color: COLORS.text,
                       fontWeight: 700,
                     }}>{available.toFixed(0)}</span>
                   </div>
@@ -1817,7 +1818,7 @@ const LeaveManagement: React.FC = () => {
                       width: '8px',
                       height: '8px',
                       borderRadius: '50%',
-                      backgroundColor: COLORS.primary,
+                      backgroundColor: '#999999',
                       opacity: 0.6,
                     }} />
                   )}
@@ -1872,8 +1873,8 @@ const LeaveManagement: React.FC = () => {
                       fontFamily: TYPOGRAPHY.fontFamily,
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = COLORS.primaryHover;
-                      e.currentTarget.style.color = COLORS.white;
+                      e.currentTarget.style.backgroundColor = '#f5f5f5';
+                      e.currentTarget.style.color = COLORS.text;
                     }}
                     onMouseLeave={(e) => {
                       e.currentTarget.style.backgroundColor = COLORS.white;
@@ -1905,8 +1906,8 @@ const LeaveManagement: React.FC = () => {
                       fontFamily: TYPOGRAPHY.fontFamily,
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = COLORS.primaryHover;
-                      e.currentTarget.style.color = COLORS.white;
+                      e.currentTarget.style.backgroundColor = '#f5f5f5';
+                      e.currentTarget.style.color = COLORS.text;
                     }}
                     onMouseLeave={(e) => {
                       e.currentTarget.style.backgroundColor = COLORS.white;
@@ -2033,8 +2034,8 @@ const LeaveManagement: React.FC = () => {
                         title={tooltipText}
                         onMouseEnter={(e) => {
                           if (!isSelected && !isToday) {
-                            e.currentTarget.style.backgroundColor = COLORS.primaryHover;
-                            e.currentTarget.style.color = COLORS.white;
+                            e.currentTarget.style.backgroundColor = '#f5f5f5';
+                            e.currentTarget.style.color = COLORS.text;
                             e.currentTarget.style.opacity = '1';
                           }
                         }}
@@ -2141,17 +2142,17 @@ const LeaveManagement: React.FC = () => {
                     color: COLORS.text,
                   }}>
                     Status
-                  </label>
-                  <select
+            </label>
+            <select
                     value={tableFilters.status}
                     onChange={(e) => setTableFilters({ ...tableFilters, status: e.target.value })}
-                    style={{
-                      width: '100%',
+              style={{
+                width: '100%',
                       padding: '8px',
-                      border: `1px solid ${COLORS.border}`,
+                border: `1px solid ${COLORS.border}`,
                       borderRadius: '4px',
-                      fontFamily: TYPOGRAPHY.fontFamily,
-                      backgroundColor: COLORS.white,
+                fontFamily: TYPOGRAPHY.fontFamily,
+                backgroundColor: COLORS.white,
                       fontSize: '12px',
                       color: COLORS.text,
                     }}
@@ -2162,8 +2163,8 @@ const LeaveManagement: React.FC = () => {
                     <option value="taken">Taken</option>
                     <option value="scheduled">Scheduled</option>
                     <option value="rejected">Rejected</option>
-                  </select>
-                </div>
+            </select>
+          </div>
                 <div>
                   <label style={{
                     display: 'block',
@@ -2177,17 +2178,17 @@ const LeaveManagement: React.FC = () => {
                   <select
                     value={tableFilters.leaveType}
                     onChange={(e) => setTableFilters({ ...tableFilters, leaveType: e.target.value })}
-                    style={{
+              style={{
                       width: '100%',
                       padding: '8px',
                       border: `1px solid ${COLORS.border}`,
                       borderRadius: '4px',
-                      fontFamily: TYPOGRAPHY.fontFamily,
+                fontFamily: TYPOGRAPHY.fontFamily,
                       backgroundColor: COLORS.white,
                       fontSize: '12px',
-                      color: COLORS.text,
-                    }}
-                  >
+                color: COLORS.text,
+              }}
+            >
                     <option value="">All Types</option>
                     {leaveTypes.map(lt => (
                       <option key={lt.id} value={lt.id.toString()}>{lt.name}</option>
@@ -2203,12 +2204,12 @@ const LeaveManagement: React.FC = () => {
                     color: COLORS.text,
                   }}>
                     From Date
-                  </label>
+            </label>
                   <input
                     type="date"
                     value={tableFilters.dateFrom}
                     onChange={(e) => setTableFilters({ ...tableFilters, dateFrom: e.target.value })}
-                    style={{
+              style={{
                       width: '100%',
                       padding: '8px',
                       border: `1px solid ${COLORS.border}`,
@@ -2234,19 +2235,19 @@ const LeaveManagement: React.FC = () => {
                     type="date"
                     value={tableFilters.dateTo}
                     onChange={(e) => setTableFilters({ ...tableFilters, dateTo: e.target.value })}
-                    style={{
+                style={{
                       width: '100%',
                       padding: '8px',
                       border: `1px solid ${COLORS.border}`,
                       borderRadius: '4px',
                       fontFamily: TYPOGRAPHY.fontFamily,
-                      backgroundColor: COLORS.white,
+                  backgroundColor: COLORS.white,
                       fontSize: '12px',
                       color: COLORS.text,
-                    }}
-                  />
-                </div>
-              </div>
+                }}
+              />
+            </div>
+          </div>
               
               {filteredLeaveRequests.length === 0 ? (
                 <div style={{
@@ -2257,7 +2258,7 @@ const LeaveManagement: React.FC = () => {
                   fontSize: '14px',
                 }}>
                   No leave requests found
-                </div>
+        </div>
               ) : (
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{
@@ -2709,7 +2710,7 @@ const LeaveManagement: React.FC = () => {
                       }}
                     />
                   </td>
-                  <td style={{ padding: '12px', fontSize: '14px', color: type.status === 'deleted' ? COLORS.textLight : COLORS.primary, fontStyle: type.status === 'deleted' ? 'italic' : 'normal' }}>
+                  <td style={{ padding: '12px', fontSize: '14px', color: type.status === 'deleted' ? COLORS.textLight : COLORS.text, fontStyle: type.status === 'deleted' ? 'italic' : 'normal' }}>
                     {type.name}
                   </td>
                   <td style={{ padding: '12px', fontSize: '14px', color: COLORS.text }}>
@@ -2787,7 +2788,7 @@ const LeaveManagement: React.FC = () => {
             maxWidth: '90%',
           }}>
             <h2 style={{
-              color: COLORS.primary,
+              color: COLORS.text,
               fontSize: '1.25rem',
               fontFamily: TYPOGRAPHY.fontFamily,
               marginBottom: '20px',
@@ -3230,7 +3231,7 @@ const LeaveManagement: React.FC = () => {
             maxWidth: '90%',
           }}>
             <h2 style={{
-              color: COLORS.primary,
+              color: COLORS.text,
               fontSize: '1.25rem',
               fontFamily: TYPOGRAPHY.fontFamily,
               marginBottom: '20px',
@@ -3660,7 +3661,7 @@ const LeaveManagement: React.FC = () => {
                   <td style={{ padding: '12px', fontSize: '13px', color: request.unpaid_leave_days > 0 ? '#d32f2f' : COLORS.text, fontWeight: request.unpaid_leave_days > 0 ? 600 : 'normal' }}>
                     {request.unpaid_leave_days !== undefined ? `${request.unpaid_leave_days} days` : '-'}
                   </td>
-                  <td style={{ padding: '12px', fontSize: '13px', color: COLORS.primary, fontWeight: 600 }}>
+                  <td style={{ padding: '12px', fontSize: '13px', color: COLORS.text, fontWeight: 600 }}>
                     {request.payable_days !== undefined ? `${request.payable_days.toFixed(2)} days` : '-'}
                   </td>
                   <td style={{ padding: '12px', textAlign: 'left' }}>
@@ -3675,7 +3676,7 @@ const LeaveManagement: React.FC = () => {
                           }
                         }
                       }}
-                      style={{ 
+          style={{
                         background: 'none', 
                         border: 'none', 
                         cursor: 'pointer', 
@@ -3721,10 +3722,10 @@ const LeaveManagement: React.FC = () => {
 
   const renderAssignLeave = () => (
     <div style={{
-      backgroundColor: COLORS.white,
+            backgroundColor: COLORS.white,
       borderRadius: '8px',
-      border: `1px solid ${COLORS.border}`,
-      padding: '32px',
+            border: `1px solid ${COLORS.border}`,
+            padding: '32px',
       boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
       maxWidth: '800px',
     }}>
@@ -3736,7 +3737,7 @@ const LeaveManagement: React.FC = () => {
         fontSize: '18px',
         fontWeight: 600,
       }}>
-        Assign Leave
+        Declare Holidays
       </h2>
       
       <div style={{ marginBottom: '20px' }}>
@@ -4185,8 +4186,8 @@ const LeaveManagement: React.FC = () => {
       </div>
 
       <p style={{
-        fontFamily: TYPOGRAPHY.fontFamily,
-        color: COLORS.textLight,
+            fontFamily: TYPOGRAPHY.fontFamily,
+            color: COLORS.textLight,
         fontSize: '15px',
       }}>
         No Records Found
@@ -4415,7 +4416,7 @@ const LeaveManagement: React.FC = () => {
                 const periodEnd = ent.leave_period_end?.slice(0, 10) || `${new Date().getFullYear()}-12-31`;
                 return (
                   <tr key={idx} style={{ borderBottom: `1px solid ${COLORS.border}` }}>
-                    <td style={{ padding: '12px', fontSize: '14px', color: COLORS.primary, fontWeight: 500 }}>
+                    <td style={{ padding: '12px', fontSize: '14px', color: COLORS.text, fontWeight: 500 }}>
                       {ent.leave_type_name || 'Unknown'}
                     </td>
                     <td style={{ padding: '12px', fontSize: '14px', color: COLORS.text }}>
@@ -4485,6 +4486,9 @@ const LeaveManagement: React.FC = () => {
       backgroundColor: COLORS.lightBg,
       minHeight: '100vh',
     }}>
+      <div style={{ marginBottom: '16px' }}>
+        <BackToDashboard />
+      </div>
       {renderNav()}
       {renderContent()}
     </div>

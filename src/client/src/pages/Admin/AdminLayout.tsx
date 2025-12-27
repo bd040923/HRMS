@@ -6,12 +6,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
+import BackToDashboard from '../../components/BackToDashboard';
 
 const COLORS = {
   primary: '#78176b',
   primaryHover: '#590a4f',
-  lightBg: '#faf3ff',
-  lightBgAlt: '#fffafe',
+  lightBg: '#f9f9f9',
+  lightBgAlt: '#f9f9f9',
   white: '#ffffff',
   text: '#333333',
   textLight: '#666666',
@@ -75,11 +76,9 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, title, breadcrumbs 
         { name: 'Education', path: '/admin/education' },
         { name: 'Licenses', path: '/admin/licenses' },
         { name: 'Languages', path: '/admin/languages' },
-        { name: 'Memberships', path: '/admin/memberships' },
       ]
     },
-    { name: 'Nationalities', path: '/admin/nationalities', permission: 'view_employees' },
-    { name: 'Corporate Branding', path: '/admin/branding', permission: 'manage_users' },
+    { name: 'KYC Verification', path: '/admin/kyc-verification', permission: 'manage_users' },
     { name: 'Configuration', path: '/admin/configuration', permission: 'manage_users' },
   ];
 
@@ -98,10 +97,8 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, title, breadcrumbs 
         location.pathname.startsWith('/admin/skills') ||
         location.pathname.startsWith('/admin/education') ||
         location.pathname.startsWith('/admin/licenses') ||
-        location.pathname.startsWith('/admin/languages') ||
-        location.pathname.startsWith('/admin/memberships')) return '/admin/qualifications';
-    if (location.pathname.startsWith('/admin/nationalities')) return '/admin/nationalities';
-    if (location.pathname.startsWith('/admin/branding')) return '/admin/branding';
+        location.pathname.startsWith('/admin/languages')) return '/admin/qualifications';
+    if (location.pathname.startsWith('/admin/kyc-verification')) return '/admin/kyc-verification';
     if (location.pathname.startsWith('/admin/configuration')) return '/admin/configuration';
     return '/admin/users';
   };
@@ -140,68 +137,21 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, title, breadcrumbs 
 
   return (
     <div style={{
+      padding: '24px',
       backgroundColor: COLORS.lightBg,
       minHeight: '100vh',
-      display: 'flex',
-      flexDirection: 'column'
     }}>
-      {/* Top Bar */}
-      <div style={{
-        backgroundColor: COLORS.primary,
-        color: COLORS.white,
-        padding: '16px 24px',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center'
-      }}>
-        <div>
-          <h2 style={{
-            margin: 0,
-            fontSize: '1.25rem',
-            fontFamily: TYPOGRAPHY.fontFamily,
-            fontWeight: 500
-          }}>
-            {breadcrumbs.join(' / ')}
-          </h2>
-        </div>
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '12px'
-        }}>
-          <div style={{
-            width: '40px',
-            height: '40px',
-            borderRadius: '50%',
-            backgroundColor: COLORS.white,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: COLORS.primary,
-            fontWeight: 600,
-            fontSize: '16px'
-          }}>
-            A
-          </div>
-          <span style={{
-            fontFamily: TYPOGRAPHY.fontFamily,
-            fontSize: TYPOGRAPHY.textImportant.fontSize,
-            fontWeight: 500
-          }}>
-            Admin User
-          </span>
-        </div>
+      {/* Back to Dashboard Button */}
+      <div style={{ marginBottom: '16px' }}>
+        <BackToDashboard />
       </div>
 
       {/* Admin Tabs with Dropdowns */}
       <div style={{
-        backgroundColor: '#f5f5f5',
-        borderBottom: `1px solid ${COLORS.border}`,
-        borderTop: `1px solid ${COLORS.border}`,
         display: 'flex',
-        padding: '0 24px',
         gap: '8px',
-        boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+        marginBottom: '24px',
+        flexWrap: 'wrap',
         position: 'relative',
       }} ref={dropdownRef}>
         {adminTabs.map((tab) => {
@@ -214,26 +164,23 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, title, breadcrumbs 
               <button
                 onClick={() => handleTabClick(tab)}
                 style={{
-                  padding: '12px 16px',
-                  backgroundColor: isActive ? COLORS.primary : 'transparent',
-                  color: isActive ? COLORS.white : COLORS.textLight,
+                  padding: '12px 24px',
+                  borderRadius: '6px',
                   border: 'none',
-                  borderBottom: isActive ? `3px solid ${COLORS.primary}` : '3px solid transparent',
-                  borderRadius: '6px 6px 0 0',
-                  cursor: 'pointer',
-                  fontSize: TYPOGRAPHY.textImportant.fontSize,
+                  backgroundColor: isActive ? '#f5f5f5' : 'transparent',
+                  color: isActive ? COLORS.text : COLORS.textLight,
                   fontFamily: TYPOGRAPHY.fontFamily,
-                  fontWeight: isActive ? 500 : 400,
-                  transition: 'all 0.2s',
-                  marginTop: '4px',
+                  fontSize: '15px',
+                  cursor: 'pointer',
+                  fontWeight: 500,
                   display: 'flex',
                   alignItems: 'center',
                   gap: '4px',
                 }}
                 onMouseEnter={(e) => {
                   if (!isActive) {
-                    e.currentTarget.style.backgroundColor = COLORS.lightBg;
-                    e.currentTarget.style.color = COLORS.primary;
+                    e.currentTarget.style.backgroundColor = '#f9f9f9';
+                    e.currentTarget.style.color = COLORS.text;
                   }
                 }}
                 onMouseLeave={(e) => {
@@ -245,7 +192,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, title, breadcrumbs 
               >
                 {tab.name}
                 {hasDropdown && (
-                  <span style={{ fontSize: '10px' }}>
+                  <span style={{ fontSize: '10px', marginLeft: '4px' }}>
                     {isDropdownOpen ? '▲' : '▼'}
                   </span>
                 )}
@@ -257,13 +204,13 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, title, breadcrumbs 
                   position: 'absolute',
                   top: '100%',
                   left: 0,
+                  marginTop: '4px',
                   backgroundColor: COLORS.white,
                   border: `1px solid ${COLORS.border}`,
-                  borderRadius: '0 0 6px 6px',
+                  borderRadius: '6px',
                   boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
                   minWidth: '200px',
                   zIndex: 1000,
-                  marginTop: '-3px',
                 }}>
                   {tab.dropdown!.map((item: DropdownItem) => (
                     <button
@@ -271,26 +218,20 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, title, breadcrumbs 
                       onClick={() => handleDropdownItemClick(item.path)}
                       style={{
                         width: '100%',
-                        padding: '12px 16px',
-                        backgroundColor: location.pathname === item.path ? COLORS.lightBg : COLORS.white,
-                        color: location.pathname === item.path ? COLORS.primary : COLORS.text,
+                        padding: '10px 16px',
                         border: 'none',
-                        borderBottom: `1px solid ${COLORS.border}`,
+                        backgroundColor: 'transparent',
                         textAlign: 'left',
                         cursor: 'pointer',
-                        fontSize: TYPOGRAPHY.textNote.fontSize,
                         fontFamily: TYPOGRAPHY.fontFamily,
-                        transition: 'background-color 0.2s',
+                        color: location.pathname === item.path ? COLORS.text : COLORS.textLight,
+                        fontSize: '14px',
                       }}
                       onMouseEnter={(e) => {
-                        if (location.pathname !== item.path) {
-                          e.currentTarget.style.backgroundColor = COLORS.lightBg;
-                        }
+                        e.currentTarget.style.backgroundColor = COLORS.lightBg;
                       }}
                       onMouseLeave={(e) => {
-                        if (location.pathname !== item.path) {
-                          e.currentTarget.style.backgroundColor = COLORS.white;
-                        }
+                        e.currentTarget.style.backgroundColor = 'transparent';
                       }}
                     >
                       {item.name}
@@ -304,10 +245,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, title, breadcrumbs 
       </div>
 
       {/* Main Content */}
-      <div style={{
-        flex: 1,
-        padding: '24px',
-      }}>
+      <div>
         {children}
       </div>
     </div>

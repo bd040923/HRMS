@@ -90,3 +90,5 @@ JOIN hrms_data.leave_types lt ON le.leave_type_id = lt.id
 WHERE lt.name IN ('Casual Leave', 'Earned Leave')
 ORDER BY e.first_name, lt.name;
 
+
+

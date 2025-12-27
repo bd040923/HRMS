@@ -18,6 +18,7 @@
 import React, { useEffect, useState, useRef, Suspense } from 'react';
 import { Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
+import { apiService } from './services/api';
 import { SidebarProvider, useSidebar } from './context/SidebarContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Sidebar from './components/Sidebar';
@@ -68,6 +69,7 @@ import Modules from './pages/Admin/Modules';
 import SocialMediaAuth from './pages/Admin/SocialMediaAuth';
 import OAuthClient from './pages/Admin/OAuthClient';
 import LDAPConfiguration from './pages/Admin/LDAPConfiguration';
+import KycVerification from './pages/Admin/KycVerification';
 
 // Brand Colors
 const COLORS = {
@@ -142,7 +144,7 @@ const HomePage: React.FC = () => {
         boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
       }}>
         <h1 style={{ 
-          color: COLORS.primary, 
+          color: COLORS.text, 
           fontSize: TYPOGRAPHY.heading.fontSize,
           fontFamily: TYPOGRAPHY.fontFamily,
           marginBottom: '24px',
@@ -183,7 +185,7 @@ const HomePage: React.FC = () => {
               display: 'inline-block',
               padding: '10px 24px',
               backgroundColor: COLORS.white,
-              color: COLORS.primary,
+              color: COLORS.text,
               textDecoration: 'none',
               borderRadius: '6px',
               fontWeight: 500,
@@ -193,12 +195,12 @@ const HomePage: React.FC = () => {
               transition: 'all 0.3s'
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = COLORS.primary;
-              e.currentTarget.style.color = COLORS.white;
+              e.currentTarget.style.backgroundColor = '#f5f5f5';
+              e.currentTarget.style.color = COLORS.text;
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.backgroundColor = COLORS.white;
-              e.currentTarget.style.color = COLORS.primary;
+              e.currentTarget.style.color = COLORS.text;
             }}
           >
             About
@@ -311,9 +313,18 @@ const ClipboardIcon = ({ color, size = 48 }: { color: string; size?: number }) =
 // Dashboard Component
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [punchedIn, setPunchedIn] = React.useState(false);
   const [showPunchInModal, setShowPunchInModal] = React.useState(false);
   const [showPunchOutModal, setShowPunchOutModal] = React.useState(false);
+  
+  // Dashboard data states
+  const [todayHours, setTodayHours] = React.useState('0h 0m');
+  const [timesheetsToApprove, setTimesheetsToApprove] = React.useState(0);
+  const [pendingSelfReview, setPendingSelfReview] = React.useState(0);
+  const [employeesOnLeaveToday, setEmployeesOnLeaveToday] = React.useState<any[]>([]);
+  const [departmentDistribution, setDepartmentDistribution] = React.useState<{ name: string; count: number; percentage: number }[]>([]);
+  const [loading, setLoading] = React.useState(true);
 
   const quickLaunchItems = [
     { name: 'Apply Leave', icon: UmbrellaIcon, route: '/leave' },
@@ -321,9 +332,97 @@ const Dashboard: React.FC = () => {
     { name: 'Leave Reports', icon: ClipboardIcon, route: '/leave/reports' },
     { name: 'Timesheets', icon: ClockIcon, route: '/time' },
     { name: 'My Info', icon: UsersIcon, route: '/my-info' },
-    { name: 'Recruitment', icon: UserTieIcon, route: '/recruitment' },
+    { name: 'Onboarding', icon: UserTieIcon, route: '/recruitment' },
     { name: 'Reports', icon: ClipboardIcon, route: '/reports' },
   ];
+
+  // Load dashboard data
+  useEffect(() => {
+    loadDashboardData();
+  }, [user]);
+
+  const loadDashboardData = async () => {
+    setLoading(true);
+    try {
+      // Load timesheets to approve (pending status)
+      try {
+        const timesheets = await apiService.getTimesheets({ status: 'pending' });
+        setTimesheetsToApprove(timesheets.length || 0);
+      } catch (err) {
+        console.error('Error loading timesheets:', err);
+      }
+
+      // Load employees on leave today
+      try {
+        const today = new Date().toISOString().split('T')[0];
+        const leaveRequests = await apiService.getLeaveRequests({ status: 'approved' });
+        const todayLeaves = leaveRequests.filter((lr: any) => {
+          const fromDate = new Date(lr.from_date);
+          const toDate = new Date(lr.to_date);
+          const todayDate = new Date(today);
+          return todayDate >= fromDate && todayDate <= toDate;
+        });
+        setEmployeesOnLeaveToday(todayLeaves);
+      } catch (err) {
+        console.error('Error loading leave requests:', err);
+      }
+
+      // Load employee distribution by department
+      try {
+        const employees = await apiService.getEmployees('full');
+        const deptMap = new Map<string, number>();
+        employees.forEach((emp: any) => {
+          const dept = emp.department || 'Unassigned';
+          deptMap.set(dept, (deptMap.get(dept) || 0) + 1);
+        });
+        const total = employees.length;
+        const distribution = Array.from(deptMap.entries()).map(([name, count]) => ({
+          name,
+          count,
+          percentage: total > 0 ? Math.round((count / total) * 100) : 0
+        })).sort((a, b) => b.count - a.count);
+        setDepartmentDistribution(distribution);
+      } catch (err) {
+        console.error('Error loading employees:', err);
+      }
+
+      // Load today's attendance hours
+      try {
+        const today = new Date().toISOString().split('T')[0];
+        // Get employee ID from user - try different possible fields
+        const employeeId = (user as any)?.employeeId || (user as any)?.employee_id || (user as any)?.id;
+        if (employeeId) {
+          const attendance = await apiService.getAttendanceRecords({ employee_id: employeeId, date: today });
+          if (attendance && attendance.length > 0) {
+            const record = attendance[0];
+            if (record.punch_in_time && record.punch_out_time) {
+              const inTime = new Date(`${today}T${record.punch_in_time}`);
+              const outTime = new Date(`${today}T${record.punch_out_time}`);
+              const diffMs = outTime.getTime() - inTime.getTime();
+              const hours = Math.floor(diffMs / (1000 * 60 * 60));
+              const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+              setTodayHours(`${hours}h ${minutes}m`);
+              setPunchedIn(false);
+            } else if (record.punch_in_time) {
+              const inTime = new Date(`${today}T${record.punch_in_time}`);
+              const now = new Date();
+              const diffMs = now.getTime() - inTime.getTime();
+              const hours = Math.floor(diffMs / (1000 * 60 * 60));
+              const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+              setTodayHours(`${hours}h ${minutes}m`);
+              setPunchedIn(true);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Error loading attendance:', err);
+      }
+    } catch (err) {
+      console.error('Error loading dashboard data:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div
@@ -355,7 +454,7 @@ const Dashboard: React.FC = () => {
 
       <h1
         style={{
-          color: COLORS.primary,
+          color: COLORS.text,
           marginBottom: '8px',
           marginTop: 0,
           fontSize: TYPOGRAPHY.heading.fontSize,
@@ -429,7 +528,7 @@ const Dashboard: React.FC = () => {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: COLORS.primary,
+                  color: COLORS.text,
                   fontWeight: 600,
                   fontFamily: TYPOGRAPHY.fontFamily,
                 }}
@@ -476,7 +575,7 @@ const Dashboard: React.FC = () => {
               marginBottom: '8px',
             }}
           >
-            0h 0m Today
+            {todayHours} Today
           </div>
           <div
             style={{
@@ -560,7 +659,7 @@ const Dashboard: React.FC = () => {
               }}
             >
               <span style={{ fontSize: '18px' }}>📋</span>
-              <span style={{ flex: 1 }}>1 Timesheet to Approve</span>
+              <span style={{ flex: 1 }}>{timesheetsToApprove} Timesheet{timesheetsToApprove !== 1 ? 's' : ''} to Approve</span>
               <span style={{ fontSize: '12px', opacity: 0.7 }}>→</span>
             </div>
             <div
@@ -580,8 +679,8 @@ const Dashboard: React.FC = () => {
                 borderLeft: `3px solid ${COLORS.primary}`,
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = COLORS.primary;
-                e.currentTarget.style.color = COLORS.white;
+                e.currentTarget.style.backgroundColor = '#f5f5f5';
+                e.currentTarget.style.color = COLORS.text;
                 e.currentTarget.style.transform = 'translateX(4px)';
               }}
               onMouseLeave={(e) => {
@@ -591,7 +690,7 @@ const Dashboard: React.FC = () => {
               }}
             >
               <span style={{ fontSize: '18px' }}>👤</span>
-              <span style={{ flex: 1 }}>1 Pending Self Review</span>
+              <span style={{ flex: 1 }}>{pendingSelfReview} Pending Self Review{pendingSelfReview !== 1 ? 's' : ''}</span>
               <span style={{ fontSize: '12px', opacity: 0.7 }}>→</span>
             </div>
           </div>
@@ -704,83 +803,25 @@ const Dashboard: React.FC = () => {
               border: `2px dashed ${COLORS.border}`,
             }}
           >
-            <div style={{ fontSize: '32px', marginBottom: '8px' }}>✓</div>
-            <div>No employees are on leave today</div>
-          </div>
-        </div>
-
-        {/* Buzz Latest Posts */}
-        <div
-          style={{
-            gridColumn: 'span 4',
-            backgroundColor: COLORS.white,
-            borderRadius: '12px',
-            border: `1px solid ${COLORS.border}`,
-            padding: '20px',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-          }}
-        >
-          <div
-            style={{
-              fontFamily: TYPOGRAPHY.fontFamily,
-              fontSize: '17px',
-              fontWeight: 600,
-              color: COLORS.text,
-              marginBottom: '16px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-            }}
-          >
-            <span style={{ fontSize: '20px' }}>📢</span>
-            Buzz Latest Posts
-          </div>
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '12px',
-            }}
-          >
-            <div
-              style={{
-                padding: '12px',
-                backgroundColor: COLORS.lightBg,
-                borderRadius: '8px',
-                borderLeft: `3px solid ${COLORS.primary}`,
-                fontFamily: TYPOGRAPHY.fontFamily,
-                fontSize: '14px',
-                color: COLORS.text,
-              }}
-            >
-              Welcome to arithwise_hrms!
-            </div>
-            <div
-              style={{
-                padding: '12px',
-                backgroundColor: COLORS.lightBg,
-                borderRadius: '8px',
-                borderLeft: `3px solid ${COLORS.primary}`,
-                fontFamily: TYPOGRAPHY.fontFamily,
-                fontSize: '14px',
-                color: COLORS.text,
-              }}
-            >
-              New leave policy effective from next month.
-            </div>
-            <div
-              style={{
-                padding: '12px',
-                backgroundColor: COLORS.lightBg,
-                borderRadius: '8px',
-                borderLeft: `3px solid ${COLORS.primary}`,
-                fontFamily: TYPOGRAPHY.fontFamily,
-                fontSize: '14px',
-                color: COLORS.text,
-              }}
-            >
-              Remember to submit timesheets by Friday.
-            </div>
+            {employeesOnLeaveToday.length === 0 ? (
+              <>
+                <div style={{ fontSize: '32px', marginBottom: '8px' }}>✓</div>
+                <div>No employees are on leave today</div>
+              </>
+            ) : (
+              <div style={{ width: '100%' }}>
+                {employeesOnLeaveToday.slice(0, 5).map((leave: any, idx: number) => (
+                  <div key={idx} style={{ marginBottom: '8px', fontSize: '13px', color: COLORS.text }}>
+                    {leave.employee_name || 'Employee'} - {leave.leave_type || 'Leave'}
+                  </div>
+                ))}
+                {employeesOnLeaveToday.length > 5 && (
+                  <div style={{ fontSize: '12px', color: COLORS.textLight, marginTop: '8px' }}>
+                    +{employeesOnLeaveToday.length - 5} more
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -824,199 +865,93 @@ const Dashboard: React.FC = () => {
           
           <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
             {/* Chart */}
-            <div
-              style={{
-                width: '160px',
-                height: '160px',
-                borderRadius: '50%',
-                background: `conic-gradient(${COLORS.primary} 0deg 288deg, #e8d4e8 288deg 360deg)`,
-                position: 'relative',
-                boxShadow: '0 4px 12px rgba(120, 23, 107, 0.15)',
-                flex: 'none',
-              }}
-            >
-              <div
-                style={{
-                  position: 'absolute',
-                  top: '50%',
-                  left: '50%',
-                  transform: 'translate(-50%, -50%)',
-                  width: '100px',
-                  height: '100px',
-                  borderRadius: '50%',
-                  backgroundColor: COLORS.white,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexDirection: 'column',
-                  boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.06)',
-                }}
-              >
-                <div style={{ fontFamily: TYPOGRAPHY.fontFamily, fontSize: '28px', fontWeight: 700, color: COLORS.primary }}>
-                  80%
+            {(() => {
+              const firstDept = departmentDistribution.length > 0 ? departmentDistribution[0] : null;
+              const firstDeg = firstDept ? (firstDept.percentage / 100) * 360 : 0;
+              return (
+                <div
+                  style={{
+                    width: '160px',
+                    height: '160px',
+                    borderRadius: '50%',
+                    background: firstDept 
+                      ? `conic-gradient(#999999 0deg ${firstDeg}deg, #e0e0e0 ${firstDeg}deg 360deg)`
+                      : `conic-gradient(#e0e0e0 0deg 360deg)`,
+                    position: 'relative',
+                    boxShadow: '0 4px 12px rgba(120, 23, 107, 0.15)',
+                    flex: 'none',
+                  }}
+                >
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: '50%',
+                      left: '50%',
+                      transform: 'translate(-50%, -50%)',
+                      width: '100px',
+                      height: '100px',
+                      borderRadius: '50%',
+                      backgroundColor: COLORS.white,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexDirection: 'column',
+                      boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.06)',
+                    }}
+                  >
+                    <div style={{ fontFamily: TYPOGRAPHY.fontFamily, fontSize: '28px', fontWeight: 700, color: COLORS.text }}>
+                      {firstDept ? `${firstDept.percentage}%` : '0%'}
+                    </div>
+                    <div style={{ fontFamily: TYPOGRAPHY.fontFamily, fontSize: '11px', color: COLORS.textLight, marginTop: '2px' }}>
+                      {firstDept ? firstDept.name : 'No Data'}
+                    </div>
+                  </div>
                 </div>
-                <div style={{ fontFamily: TYPOGRAPHY.fontFamily, fontSize: '11px', color: COLORS.textLight, marginTop: '2px' }}>
-                  Main Unit
-                </div>
-              </div>
-            </div>
+              );
+            })()}
 
             {/* Legend */}
             <div style={{ flex: 1 }}>
               <div style={{ marginBottom: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                  <div style={{ width: '16px', height: '16px', borderRadius: '4px', backgroundColor: COLORS.primary, boxShadow: '0 2px 4px rgba(120, 23, 107, 0.3)' }} />
+                  <div style={{ width: '16px', height: '16px', borderRadius: '4px', backgroundColor: '#999999', boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)' }} />
                   <span style={{ fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.text, fontWeight: 500 }}>
-                    Human Resources
-                  </span>
-                </div>
-                <div style={{ paddingLeft: '24px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '20px', fontWeight: 600, color: COLORS.primary }}>
-                  80%
-                </div>
-                <div style={{ paddingLeft: '24px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '12px', color: COLORS.textLight }}>
-                  240 employees
-                </div>
-              </div>
-
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                  <div style={{ width: '16px', height: '16px', borderRadius: '4px', backgroundColor: '#e8d4e8' }} />
-                  <span style={{ fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.text, fontWeight: 500 }}>
-                    Others
+                    {departmentDistribution.length > 0 ? departmentDistribution[0].name : 'No Data'}
                   </span>
                 </div>
                 <div style={{ paddingLeft: '24px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '20px', fontWeight: 600, color: COLORS.text }}>
-                  20%
+                  {departmentDistribution.length > 0 ? `${departmentDistribution[0].percentage}%` : '0%'}
                 </div>
                 <div style={{ paddingLeft: '24px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '12px', color: COLORS.textLight }}>
-                  60 employees
+                  {departmentDistribution.length > 0 ? `${departmentDistribution[0].count} employees` : '0 employees'}
                 </div>
               </div>
+
+              {departmentDistribution.length > 1 && (
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                    <div style={{ width: '16px', height: '16px', borderRadius: '4px', backgroundColor: '#e8d4e8' }} />
+                    <span style={{ fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.text, fontWeight: 500 }}>
+                      Others
+                    </span>
+                  </div>
+                  <div style={{ paddingLeft: '24px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '20px', fontWeight: 600, color: COLORS.text }}>
+                    {departmentDistribution.slice(1).reduce((sum, d) => sum + d.percentage, 0)}%
+                  </div>
+                  <div style={{ paddingLeft: '24px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '12px', color: COLORS.textLight }}>
+                    {departmentDistribution.slice(1).reduce((sum, d) => sum + d.count, 0)} employees
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
-          <div style={{ textAlign: 'center', marginTop: '20px', fontSize: '13px', color: COLORS.primary, fontFamily: TYPOGRAPHY.fontFamily, fontWeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+          <div style={{ textAlign: 'center', marginTop: '20px', fontSize: '13px', color: COLORS.textLight, fontFamily: TYPOGRAPHY.fontFamily, fontWeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
             <span>Click to view details</span>
             <span>→</span>
           </div>
         </div>
 
-        {/* Employee Distribution by Location */}
-        <div
-          style={{
-            gridColumn: 'span 4',
-            backgroundColor: COLORS.white,
-            borderRadius: '12px',
-            border: `1px solid ${COLORS.border}`,
-            padding: '20px',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-            cursor: 'pointer',
-            transition: 'transform 0.2s, box-shadow 0.2s',
-          }}
-          onClick={() => navigate('/employees')}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'translateY(-3px)';
-            e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.12)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'translateY(0)';
-            e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)';
-          }}
-        >
-          <div
-            style={{
-              fontFamily: TYPOGRAPHY.fontFamily,
-              fontSize: '17px',
-              fontWeight: 600,
-              color: COLORS.text,
-              marginBottom: '20px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-            }}
-          >
-            <span style={{ fontSize: '20px' }}>📍</span>
-            Employee Distribution by Location
-          </div>
-          
-          <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
-            {/* Chart */}
-            <div
-              style={{
-                width: '160px',
-                height: '160px',
-                borderRadius: '50%',
-                background: `conic-gradient(${COLORS.primary} 0deg 216deg, #76C044 216deg 360deg)`,
-                position: 'relative',
-                boxShadow: '0 4px 12px rgba(120, 23, 107, 0.15), 0 2px 8px rgba(118, 192, 68, 0.15)',
-                flex: 'none',
-              }}
-            >
-              <div
-                style={{
-                  position: 'absolute',
-                  top: '50%',
-                  left: '50%',
-                  transform: 'translate(-50%, -50%)',
-                  width: '100px',
-                  height: '100px',
-                  borderRadius: '50%',
-                  backgroundColor: COLORS.white,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexDirection: 'column',
-                  boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.06)',
-                }}
-              >
-                <div style={{ fontFamily: TYPOGRAPHY.fontFamily, fontSize: '24px', fontWeight: 700, color: COLORS.text }}>
-                  2
-                </div>
-                <div style={{ fontFamily: TYPOGRAPHY.fontFamily, fontSize: '11px', color: COLORS.textLight, marginTop: '2px' }}>
-                  Locations
-                </div>
-              </div>
-            </div>
-
-            {/* Legend */}
-            <div style={{ flex: 1 }}>
-              <div style={{ marginBottom: '12px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                  <div style={{ width: '16px', height: '16px', borderRadius: '4px', backgroundColor: COLORS.primary, boxShadow: '0 2px 4px rgba(120, 23, 107, 0.3)' }} />
-                  <span style={{ fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.text, fontWeight: 500 }}>
-                    Texas R&D
-                  </span>
-                </div>
-                <div style={{ paddingLeft: '24px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '20px', fontWeight: 600, color: COLORS.primary }}>
-                  60%
-                </div>
-                <div style={{ paddingLeft: '24px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '12px', color: COLORS.textLight }}>
-                  180 employees
-                </div>
-              </div>
-
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                  <div style={{ width: '16px', height: '16px', borderRadius: '4px', backgroundColor: '#76C044', boxShadow: '0 2px 4px rgba(118, 192, 68, 0.3)' }} />
-                  <span style={{ fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.text, fontWeight: 500 }}>
-                    New York Sales
-                  </span>
-                </div>
-                <div style={{ paddingLeft: '24px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '20px', fontWeight: 600, color: '#76C044' }}>
-                  40%
-                </div>
-                <div style={{ paddingLeft: '24px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '12px', color: COLORS.textLight }}>
-                  120 employees
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div style={{ textAlign: 'center', marginTop: '20px', fontSize: '13px', color: COLORS.primary, fontFamily: TYPOGRAPHY.fontFamily, fontWeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-            <span>Click to view details</span>
-            <span>→</span>
-          </div>
-        </div>
       </div>
 
       {/* Punch In Modal */}
@@ -1135,7 +1070,7 @@ const Dashboard: React.FC = () => {
                   padding: '10px 24px',
                   borderRadius: '6px',
                   border: 'none',
-                  backgroundColor: '#76C044',
+                  backgroundColor: COLORS.primary,
                   color: COLORS.white,
                   fontFamily: TYPOGRAPHY.fontFamily,
                   cursor: 'pointer',
@@ -1275,7 +1210,7 @@ const Dashboard: React.FC = () => {
                   padding: '10px 24px',
                   borderRadius: '6px',
                   border: 'none',
-                  backgroundColor: '#76C044',
+                  backgroundColor: COLORS.primary,
                   color: COLORS.white,
                   fontFamily: TYPOGRAPHY.fontFamily,
                   cursor: 'pointer',
@@ -1328,7 +1263,7 @@ const About: React.FC = () => {
       </button>
       
       <h1 style={{ 
-        color: COLORS.primary, 
+                  color: COLORS.text,
         marginBottom: '20px',
         marginTop: 0,
         fontSize: TYPOGRAPHY.heading.fontSize,
@@ -1375,7 +1310,7 @@ const About: React.FC = () => {
         <h3 style={{ 
           marginTop: '20px', 
           marginBottom: '12px',
-          color: COLORS.primary,
+          color: COLORS.text,
           fontSize: TYPOGRAPHY.subheading.fontSize,
           fontFamily: TYPOGRAPHY.fontFamily,
           fontWeight: 500
@@ -1590,19 +1525,19 @@ const App: React.FC = () => {
     console.log('App Name:', APP_NAME);
   }, []);
 
-  useEffect(() => {
-    const pingBackend = async () => {
-      try {
-        const response = await fetch('http://localhost:3001/api/test');
-        const data = await response.json();
-        console.log('✅ Backend test response:', data);
-      } catch (error) {
-        console.error('❌ Backend test request failed:', error);
-      }
-    };
-
-    pingBackend();
-  }, []);
+  // Removed backend ping test - not needed in production
+  // useEffect(() => {
+  //   const pingBackend = async () => {
+  //     try {
+  //       const response = await fetch('http://localhost:3001/api/test');
+  //       const data = await response.json();
+  //       console.log('✅ Backend test response:', data);
+  //     } catch (error) {
+  //       console.error('❌ Backend test request failed:', error);
+  //     }
+  //   };
+  //   pingBackend();
+  // }, []);
 
   const handleLogout = () => {
     logout();
@@ -1663,6 +1598,7 @@ const App: React.FC = () => {
               display: 'flex',
               alignItems: 'center',
               textDecoration: 'none',
+              gap: '16px',
             }}
           >
             <img
@@ -1673,24 +1609,24 @@ const App: React.FC = () => {
                 width: 'auto', 
                 maxWidth: '180px',
                 display: 'block',
-                objectFit: 'contain'
+                objectFit: 'contain',
+                marginRight: '4px',
               }}
               onError={(e) => {
                 const target = e.currentTarget;
                 target.style.display = 'none';
-                // Show fallback text
-                const parent = target.parentElement;
-                if (parent && !parent.querySelector('span')) {
-                  const fallback = document.createElement('span');
-                  fallback.textContent = 'arithwise_hrms';
-                  fallback.style.color = COLORS.primary;
-                  fallback.style.fontSize = '1.25rem';
-                  fallback.style.fontFamily = TYPOGRAPHY.fontFamily;
-                  fallback.style.fontWeight = '600';
-                  parent.appendChild(fallback);
-                }
               }}
             />
+            <span style={{
+              color: COLORS.text,
+              fontSize: '1.25rem',
+              fontFamily: TYPOGRAPHY.fontFamily,
+              fontWeight: '600',
+              letterSpacing: '0.5px',
+              marginLeft: '4px',
+            }}>
+              arithsHRMS
+            </span>
           </Link>
         </div>
         
@@ -1759,7 +1695,7 @@ const App: React.FC = () => {
                     width: '12px',
                     height: '12px',
                     borderRadius: '50%',
-                    backgroundColor: COLORS.primary,
+                    backgroundColor: COLORS.success || '#28a745',
                     border: `2px solid ${COLORS.white}`
                   }} />
                 </div>
@@ -1795,7 +1731,7 @@ const App: React.FC = () => {
         <Route path="/leave" element={<ProtectedRoute><LeaveManagement /></ProtectedRoute>} />
         <Route path="/payroll" element={<ProtectedRoute requiredPermission="view_payroll"><Payroll /></ProtectedRoute>} />
         <Route path="/expenses" element={<ProtectedRoute><Expenses /></ProtectedRoute>} />
-        <Route path="/recruitment" element={<ProtectedRoute><Recruitment /></ProtectedRoute>} />
+        <Route path="/recruitment" element={<ProtectedRoute requiredRole="admin"><Recruitment /></ProtectedRoute>} />
         <Route path="/performance" element={<ProtectedRoute><Performance /></ProtectedRoute>} />
         <Route path="/training" element={<ProtectedRoute><Training /></ProtectedRoute>} />
         <Route path="/reports" element={<ProtectedRoute requiredPermission="view_reports"><Reports /></ProtectedRoute>} />
@@ -1805,33 +1741,34 @@ const App: React.FC = () => {
         <Route path="/my-info" element={<ProtectedRoute><MyInfo /></ProtectedRoute>} />
         <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><UserManagement /></ProtectedRoute>} />
         <Route path="/admin/users" element={<ProtectedRoute requiredRole="admin"><UserManagement /></ProtectedRoute>} />
-        <Route path="/admin/job" element={<JobTitles />} />
-        <Route path="/admin/job-titles" element={<JobTitles />} />
-        <Route path="/admin/pay-grades" element={<PayGrades />} />
-        <Route path="/admin/employment-status" element={<EmploymentStatus />} />
-        <Route path="/admin/job-categories" element={<JobCategories />} />
-        <Route path="/admin/work-shifts" element={<WorkShifts />} />
-        <Route path="/admin/organization" element={<Organization />} />
-        <Route path="/admin/general-information" element={<GeneralInformation />} />
-        <Route path="/admin/locations" element={<Locations />} />
-        <Route path="/admin/structure" element={<Structure />} />
-        <Route path="/admin/qualifications" element={<Qualifications />} />
-        <Route path="/admin/skills" element={<Skills />} />
-        <Route path="/admin/education" element={<Education />} />
-        <Route path="/admin/licenses" element={<Licenses />} />
-        <Route path="/admin/languages" element={<Languages />} />
-        <Route path="/admin/memberships" element={<Memberships />} />
-        <Route path="/admin/nationalities" element={<Nationalities />} />
-        <Route path="/admin/branding" element={<CorporateBranding />} />
-        <Route path="/admin/configuration" element={<Configuration />} />
-        <Route path="/admin/config/email" element={<EmailConfiguration />} />
-        <Route path="/admin/config/email-subscriptions" element={<EmailSubscriptions />} />
-        <Route path="/admin/config/localization" element={<Localization />} />
-        <Route path="/admin/config/language-packages" element={<LanguagePackages />} />
-        <Route path="/admin/config/modules" element={<Modules />} />
-        <Route path="/admin/config/social-auth" element={<SocialMediaAuth />} />
-        <Route path="/admin/config/oauth-client" element={<OAuthClient />} />
-        <Route path="/admin/config/ldap" element={<LDAPConfiguration />} />
+        <Route path="/admin/job" element={<ProtectedRoute requiredRole="admin"><JobTitles /></ProtectedRoute>} />
+        <Route path="/admin/job-titles" element={<ProtectedRoute requiredRole="admin"><JobTitles /></ProtectedRoute>} />
+        <Route path="/admin/pay-grades" element={<ProtectedRoute requiredRole="admin"><PayGrades /></ProtectedRoute>} />
+        <Route path="/admin/employment-status" element={<ProtectedRoute requiredRole="admin"><EmploymentStatus /></ProtectedRoute>} />
+        <Route path="/admin/job-categories" element={<ProtectedRoute requiredRole="admin"><JobCategories /></ProtectedRoute>} />
+        <Route path="/admin/work-shifts" element={<ProtectedRoute requiredRole="admin"><WorkShifts /></ProtectedRoute>} />
+        <Route path="/admin/organization" element={<ProtectedRoute requiredRole="admin"><Organization /></ProtectedRoute>} />
+        <Route path="/admin/general-information" element={<ProtectedRoute requiredRole="admin"><GeneralInformation /></ProtectedRoute>} />
+        <Route path="/admin/locations" element={<ProtectedRoute requiredRole="admin"><Locations /></ProtectedRoute>} />
+        <Route path="/admin/structure" element={<ProtectedRoute requiredRole="admin"><Structure /></ProtectedRoute>} />
+        <Route path="/admin/qualifications" element={<ProtectedRoute requiredRole="admin"><Qualifications /></ProtectedRoute>} />
+        <Route path="/admin/skills" element={<ProtectedRoute requiredRole="admin"><Skills /></ProtectedRoute>} />
+        <Route path="/admin/education" element={<ProtectedRoute requiredRole="admin"><Education /></ProtectedRoute>} />
+        <Route path="/admin/licenses" element={<ProtectedRoute requiredRole="admin"><Licenses /></ProtectedRoute>} />
+        <Route path="/admin/languages" element={<ProtectedRoute requiredRole="admin"><Languages /></ProtectedRoute>} />
+        <Route path="/admin/memberships" element={<ProtectedRoute requiredRole="admin"><Memberships /></ProtectedRoute>} />
+        <Route path="/admin/nationalities" element={<ProtectedRoute requiredRole="admin"><Nationalities /></ProtectedRoute>} />
+        <Route path="/admin/branding" element={<ProtectedRoute requiredRole="admin"><CorporateBranding /></ProtectedRoute>} />
+        <Route path="/admin/configuration" element={<ProtectedRoute requiredRole="admin"><Configuration /></ProtectedRoute>} />
+        <Route path="/admin/config/email" element={<ProtectedRoute requiredRole="admin"><EmailConfiguration /></ProtectedRoute>} />
+        <Route path="/admin/config/email-subscriptions" element={<ProtectedRoute requiredRole="admin"><EmailSubscriptions /></ProtectedRoute>} />
+        <Route path="/admin/config/localization" element={<ProtectedRoute requiredRole="admin"><Localization /></ProtectedRoute>} />
+        <Route path="/admin/config/language-packages" element={<ProtectedRoute requiredRole="admin"><LanguagePackages /></ProtectedRoute>} />
+        <Route path="/admin/config/modules" element={<ProtectedRoute requiredRole="admin"><Modules /></ProtectedRoute>} />
+        <Route path="/admin/config/social-auth" element={<ProtectedRoute requiredRole="admin"><SocialMediaAuth /></ProtectedRoute>} />
+        <Route path="/admin/config/oauth-client" element={<ProtectedRoute requiredRole="admin"><OAuthClient /></ProtectedRoute>} />
+        <Route path="/admin/config/ldap" element={<ProtectedRoute requiredRole="admin"><LDAPConfiguration /></ProtectedRoute>} />
+        <Route path="/admin/kyc-verification" element={<ProtectedRoute requiredRole="admin"><KycVerification /></ProtectedRoute>} />
       </Routes>
       </div>
       </div>

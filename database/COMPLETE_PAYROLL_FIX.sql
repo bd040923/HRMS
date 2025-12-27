@@ -279,3 +279,5 @@ SELECT name, is_paid, entitlement_days
 FROM hrms_data.leave_types 
 ORDER BY name;
 
+
+

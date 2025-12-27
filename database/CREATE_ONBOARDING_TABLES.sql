@@ -79,3 +79,5 @@ CREATE INDEX IF NOT EXISTS idx_candidate_vacancies_vacancy ON hrms_data.candidat
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA hrms_data TO bhushan;
 GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA hrms_data TO bhushan;
 
+
+

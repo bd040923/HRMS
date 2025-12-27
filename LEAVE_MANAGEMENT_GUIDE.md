@@ -227,3 +227,5 @@ Stores company holidays
 - Holidays can be set to repeat annually
 - The system uses the logged-in user's ID to identify the employee
 
+
+

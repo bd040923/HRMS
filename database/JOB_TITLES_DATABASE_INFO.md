@@ -86,3 +86,5 @@ The Job Titles page is accessible at:
 - **URL**: `/admin/job/job-titles`
 - **File**: `orangehrm/src/client/src/pages/Admin/JobTitles.tsx`
 
+
+

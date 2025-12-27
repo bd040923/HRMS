@@ -98,3 +98,5 @@ The monthly leave summary function (`get_monthly_leave_summary`) correctly calcu
 - The system is configured to **only show CL and EL** in all dropdowns
 - All other leave types are hidden/deactivated
 
+
+

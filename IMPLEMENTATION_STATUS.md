@@ -181,3 +181,5 @@ const MyComponent: React.FC = () => {
 
 All backend infrastructure is ready! Just need to connect the frontend pages to use real API calls instead of mock data.
 
+
+

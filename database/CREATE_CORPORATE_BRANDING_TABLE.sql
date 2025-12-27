@@ -87,3 +87,5 @@ FROM hrms_data.corporate_branding;
 -- View the data
 SELECT * FROM hrms_data.corporate_branding;
 
+
+

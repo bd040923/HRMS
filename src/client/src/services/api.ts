@@ -16,10 +16,45 @@ class ApiService {
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
     
+    // Get authentication token and user info from localStorage
+    const sessionToken = localStorage.getItem('sessionToken');
+    const storedUser = localStorage.getItem('user');
+    let userId = null;
+    
+    if (storedUser) {
+      try {
+        const userData = JSON.parse(storedUser);
+        userId = userData.id;
+      } catch (e) {
+        // Ignore parse errors
+      }
+    }
+    
     const isFormData = options.body instanceof FormData;
     const mergedHeaders = isFormData
       ? { ...(options.headers || {}) } // let browser set multipart boundaries
       : { 'Content-Type': 'application/json', ...(options.headers || {}) };
+    
+    // Add authentication token to headers
+    if (sessionToken) {
+      mergedHeaders['Authorization'] = `Bearer ${sessionToken}`;
+      mergedHeaders['x-session-token'] = sessionToken;
+    }
+    
+    // Add user_id to headers as fallback for authentication
+    if (userId) {
+      mergedHeaders['x-user-id'] = String(userId);
+    }
+
+    // Debug logging
+    if (endpoint.includes('kyc')) {
+      console.log('📤 KYC Request:', {
+        endpoint,
+        hasToken: !!sessionToken,
+        userId,
+        tokenPrefix: sessionToken ? sessionToken.substring(0, 20) : 'none'
+      });
+    }
 
     try {
       const response = await fetch(url, {
@@ -586,18 +621,46 @@ class ApiService {
   }
 
   async uploadKycDocument(formData: FormData, employeeId?: number) {
-    if (employeeId) formData.append('employee_id', String(employeeId));
-    return this.request<any>('/employee/kyc/upload', { method: 'POST', body: formData });
+    // New endpoint uses authentication, no need to pass employee_id
+    return this.request<any>('/kyc/upload', { method: 'POST', body: formData });
   }
 
   async getKycStatus(employeeId?: number) {
-    const suffix = employeeId ? `?employee_id=${employeeId}` : '';
-    return this.request<any>(`/employee/kyc/status${suffix}`);
+    // New endpoint uses authentication to get employee-specific KYC
+    return this.request<any>('/kyc/my');
   }
 
+  async submitKycDocument(documentType: 'aadhaar' | 'pan' | 'bank') {
+    return this.request<any>(`/kyc/submit/${documentType}`, { method: 'POST' });
+  }
+
+  async submitKycForReview() {
+    return this.request<any>('/kyc/submit', { method: 'POST' });
+  }
+
+  // Admin APIs
+  async getPendingKyc() {
+    return this.request<any>('/admin/kyc/pending');
+  }
+
+  async verifyKyc(kycId: number, status: 'APPROVED' | 'REJECTED', rejectionReason?: string) {
+    return this.request<any>('/admin/kyc/verify', {
+      method: 'POST',
+      body: JSON.stringify({ kyc_id: kycId, status, rejection_reason: rejectionReason }),
+    });
+  }
+
+  // Get all employees with KYC data - Admin only
+  async getEmployeesWithKyc() {
+    return this.request<any>('/admin/employees/with-kyc');
+  }
+
+  // Legacy method for backward compatibility
   async updateKycStatus(status: string, employeeId?: number) {
-    const suffix = employeeId ? `?employee_id=${employeeId}` : '';
-    return this.request<any>(`/employee/kyc/status${suffix}`, {
+    if (status === 'Under Review') {
+      return this.submitKycForReview();
+    }
+    return this.request<any>(`/employee/kyc/status`, {
       method: 'PUT',
       body: JSON.stringify({ status, employee_id: employeeId }),
     });

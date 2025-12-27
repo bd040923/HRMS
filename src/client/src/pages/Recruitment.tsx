@@ -6,12 +6,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiService } from '../services/api';
+import BackToDashboard from '../components/BackToDashboard';
 
 const COLORS = {
   primary: '#78176b',
   primaryHover: '#590a4f',
-  lightBg: '#faf3ff',
-  lightBgAlt: '#fffafe',
+  lightBg: '#f9f9f9',
+  lightBgAlt: '#f9f9f9',
   white: '#ffffff',
   text: '#333333',
   textLight: '#666666',
@@ -79,16 +80,19 @@ const Recruitment: React.FC = () => {
   
   // Filter states - Candidates
   const [candidateFilters, setCandidateFilters] = useState({
-    jobTitle: '',
-    vacancy: '',
-    hiringManager: '',
-    status: '',
     candidateName: '',
     keywords: '',
+    status: '',
+    dateRange: '', // 'today', 'last7days', 'last30days', 'custom'
     dateFrom: '',
     dateTo: '',
+    // Advanced filters
+    vacancy: '',
+    hiringManager: '',
     methodOfApplication: '',
   });
+  
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   
   // Filter states - Vacancies
   const [vacancyFilters, setVacancyFilters] = useState({
@@ -163,14 +167,25 @@ const Recruitment: React.FC = () => {
     setError(null);
     try {
       const filters: any = {};
-      if (candidateFilters.jobTitle) filters.jobTitle = candidateFilters.jobTitle;
-      if (candidateFilters.vacancy) filters.vacancy = candidateFilters.vacancy;
-      if (candidateFilters.hiringManager) filters.hiringManager = candidateFilters.hiringManager;
-      if (candidateFilters.status) filters.status = candidateFilters.status;
       if (candidateFilters.candidateName) filters.candidateName = candidateFilters.candidateName;
       if (candidateFilters.keywords) filters.keywords = candidateFilters.keywords;
+      // Map frontend status to backend status
+      if (candidateFilters.status) {
+        const statusMap: { [key: string]: string } = {
+          'Applied': 'Application Initiated',
+          'Shortlisted': 'Shortlisted',
+          'Interview Scheduled': 'Interview Scheduled',
+          'Offered': 'Job Offered',
+          'Hired': 'Hired',
+          'Rejected': 'Rejected',
+        };
+        filters.status = statusMap[candidateFilters.status] || candidateFilters.status;
+      }
       if (candidateFilters.dateFrom) filters.dateFrom = candidateFilters.dateFrom;
       if (candidateFilters.dateTo) filters.dateTo = candidateFilters.dateTo;
+      // Advanced filters
+      if (candidateFilters.vacancy) filters.vacancy = candidateFilters.vacancy;
+      if (candidateFilters.hiringManager) filters.hiringManager = candidateFilters.hiringManager;
       if (candidateFilters.methodOfApplication) filters.methodOfApplication = candidateFilters.methodOfApplication;
       
       const data = await apiService.getCandidates(filters);
@@ -207,17 +222,42 @@ const Recruitment: React.FC = () => {
 
   const handleCandidateReset = () => {
     setCandidateFilters({
-      jobTitle: '',
-      vacancy: '',
-      hiringManager: '',
-      status: '',
       candidateName: '',
       keywords: '',
+      status: '',
+      dateRange: '',
       dateFrom: '',
       dateTo: '',
+      vacancy: '',
+      hiringManager: '',
       methodOfApplication: '',
     });
+    setShowAdvancedFilters(false);
     setTimeout(() => loadCandidates(), 100);
+  };
+
+  const handleDateRangeChange = (range: string) => {
+    const today = new Date();
+    let dateFrom = '';
+    let dateTo = today.toISOString().split('T')[0];
+    
+    if (range === 'today') {
+      dateFrom = dateTo;
+    } else if (range === 'last7days') {
+      const last7Days = new Date(today);
+      last7Days.setDate(today.getDate() - 7);
+      dateFrom = last7Days.toISOString().split('T')[0];
+    } else if (range === 'last30days') {
+      const last30Days = new Date(today);
+      last30Days.setDate(today.getDate() - 30);
+      dateFrom = last30Days.toISOString().split('T')[0];
+    } else if (range === 'custom') {
+      // Keep existing dateFrom/dateTo values
+      setCandidateFilters({ ...candidateFilters, dateRange: 'custom' });
+      return;
+    }
+    
+    setCandidateFilters({ ...candidateFilters, dateRange: range, dateFrom, dateTo });
   };
 
   const handleVacancySearch = () => {
@@ -429,6 +469,7 @@ const Recruitment: React.FC = () => {
           Candidates
         </h3>
 
+        {/* Primary Filters */}
         <div
           style={{
             display: 'grid',
@@ -437,71 +478,8 @@ const Recruitment: React.FC = () => {
             marginBottom: '20px',
           }}
         >
-          {/* Job Title */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <label style={{ fontSize: TYPOGRAPHY.textNote.fontSize, fontFamily: TYPOGRAPHY.fontFamily, fontWeight: 500, color: COLORS.text }}>
-              Job Title
-            </label>
-            <select
-              value={candidateFilters.jobTitle}
-              onChange={(e) => setCandidateFilters({ ...candidateFilters, jobTitle: e.target.value })}
-              style={{ padding: '10px 14px', borderRadius: '8px', border: `1px solid ${COLORS.border}`, fontSize: TYPOGRAPHY.textImportant.fontSize, fontFamily: TYPOGRAPHY.fontFamily, backgroundColor: COLORS.white }}
-            >
-              <option value="">-- Select --</option>
-              {jobTitles.map((jt) => (
-                <option key={jt.id} value={jt.title}>{jt.title}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Vacancy */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <label style={{ fontSize: TYPOGRAPHY.textNote.fontSize, fontFamily: TYPOGRAPHY.fontFamily, fontWeight: 500, color: COLORS.text }}>
-              Vacancy
-            </label>
-            <input
-              type="text"
-              value={candidateFilters.vacancy}
-              onChange={(e) => setCandidateFilters({ ...candidateFilters, vacancy: e.target.value })}
-              placeholder="Type for hints..."
-              style={{ padding: '10px 14px', borderRadius: '8px', border: `1px solid ${COLORS.border}`, fontSize: TYPOGRAPHY.textImportant.fontSize, fontFamily: TYPOGRAPHY.fontFamily, boxSizing: 'border-box' }}
-            />
-          </div>
-
-          {/* Hiring Manager */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <label style={{ fontSize: TYPOGRAPHY.textNote.fontSize, fontFamily: TYPOGRAPHY.fontFamily, fontWeight: 500, color: COLORS.text }}>
-              Hiring Manager
-            </label>
-            <input
-              type="text"
-              value={candidateFilters.hiringManager}
-              onChange={(e) => setCandidateFilters({ ...candidateFilters, hiringManager: e.target.value })}
-              placeholder="Type for hints..."
-              style={{ padding: '10px 14px', borderRadius: '8px', border: `1px solid ${COLORS.border}`, fontSize: TYPOGRAPHY.textImportant.fontSize, fontFamily: TYPOGRAPHY.fontFamily, boxSizing: 'border-box' }}
-            />
-          </div>
-
-          {/* Status */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <label style={{ fontSize: TYPOGRAPHY.textNote.fontSize, fontFamily: TYPOGRAPHY.fontFamily, fontWeight: 500, color: COLORS.text }}>
-              Status
-            </label>
-            <select
-              value={candidateFilters.status}
-              onChange={(e) => setCandidateFilters({ ...candidateFilters, status: e.target.value })}
-              style={{ padding: '10px 14px', borderRadius: '8px', border: `1px solid ${COLORS.border}`, fontSize: TYPOGRAPHY.textImportant.fontSize, fontFamily: TYPOGRAPHY.fontFamily, backgroundColor: COLORS.white }}
-            >
-              <option value="">-- Select --</option>
-              <option value="Application Initiated">Application Initiated</option>
-              <option value="Shortlisted">Shortlisted</option>
-              <option value="Interview Scheduled">Interview Scheduled</option>
-              <option value="Rejected">Rejected</option>
-            </select>
-          </div>
-
           {/* Candidate Name */}
-          <div style={{ display: 'flex', flexDirection: 'column', gridColumn: 'span 2', gap: '6px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             <label style={{ fontSize: TYPOGRAPHY.textNote.fontSize, fontFamily: TYPOGRAPHY.fontFamily, fontWeight: 500, color: COLORS.text }}>
               Candidate Name
             </label>
@@ -509,13 +487,13 @@ const Recruitment: React.FC = () => {
               type="text"
               value={candidateFilters.candidateName}
               onChange={(e) => setCandidateFilters({ ...candidateFilters, candidateName: e.target.value })}
-              placeholder="Type for hints..."
+              placeholder="Search by name..."
               style={{ padding: '10px 14px', borderRadius: '8px', border: `1px solid ${COLORS.border}`, fontSize: TYPOGRAPHY.textImportant.fontSize, fontFamily: TYPOGRAPHY.fontFamily, boxSizing: 'border-box' }}
             />
           </div>
 
           {/* Keywords */}
-          <div style={{ display: 'flex', flexDirection: 'column', gridColumn: 'span 2', gap: '6px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             <label style={{ fontSize: TYPOGRAPHY.textNote.fontSize, fontFamily: TYPOGRAPHY.fontFamily, fontWeight: 500, color: COLORS.text }}>
               Keywords
             </label>
@@ -523,50 +501,165 @@ const Recruitment: React.FC = () => {
               type="text"
               value={candidateFilters.keywords}
               onChange={(e) => setCandidateFilters({ ...candidateFilters, keywords: e.target.value })}
-              placeholder="Enter comma separated words..."
+              placeholder="Comma-separated keywords..."
               style={{ padding: '10px 14px', borderRadius: '8px', border: `1px solid ${COLORS.border}`, fontSize: TYPOGRAPHY.textImportant.fontSize, fontFamily: TYPOGRAPHY.fontFamily, boxSizing: 'border-box' }}
             />
+          </div>
+
+          {/* Status */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <label style={{ fontSize: TYPOGRAPHY.textNote.fontSize, fontFamily: TYPOGRAPHY.fontFamily, fontWeight: 500, color: COLORS.text }}>
+              Candidate Status
+            </label>
+            <select
+              value={candidateFilters.status}
+              onChange={(e) => setCandidateFilters({ ...candidateFilters, status: e.target.value })}
+              style={{ padding: '10px 14px', borderRadius: '8px', border: `1px solid ${COLORS.border}`, fontSize: TYPOGRAPHY.textImportant.fontSize, fontFamily: TYPOGRAPHY.fontFamily, backgroundColor: COLORS.white }}
+            >
+              <option value="">-- Select --</option>
+              <option value="Application Initiated">Applied</option>
+              <option value="Shortlisted">Shortlisted</option>
+              <option value="Interview Scheduled">Interview Scheduled</option>
+              <option value="Job Offered">Offered</option>
+              <option value="Hired">Hired</option>
+              <option value="Rejected">Rejected</option>
+            </select>
           </div>
 
           {/* Date of Application */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             <label style={{ fontSize: TYPOGRAPHY.textNote.fontSize, fontFamily: TYPOGRAPHY.fontFamily, fontWeight: 500, color: COLORS.text }}>
-              Date of Application (From)
-            </label>
-            <input
-              type="date"
-              value={candidateFilters.dateFrom}
-              onChange={(e) => setCandidateFilters({ ...candidateFilters, dateFrom: e.target.value })}
-              style={{ padding: '10px 14px', borderRadius: '8px', border: `1px solid ${COLORS.border}`, fontSize: TYPOGRAPHY.textImportant.fontSize, fontFamily: TYPOGRAPHY.fontFamily, boxSizing: 'border-box' }}
-            />
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <label style={{ fontSize: TYPOGRAPHY.textNote.fontSize, fontFamily: TYPOGRAPHY.fontFamily, fontWeight: 500, color: COLORS.text }}>
-              Date of Application (To)
-            </label>
-            <input
-              type="date"
-              value={candidateFilters.dateTo}
-              onChange={(e) => setCandidateFilters({ ...candidateFilters, dateTo: e.target.value })}
-              style={{ padding: '10px 14px', borderRadius: '8px', border: `1px solid ${COLORS.border}`, fontSize: TYPOGRAPHY.textImportant.fontSize, fontFamily: TYPOGRAPHY.fontFamily, boxSizing: 'border-box' }}
-            />
-          </div>
-
-          {/* Method of Application */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <label style={{ fontSize: TYPOGRAPHY.textNote.fontSize, fontFamily: TYPOGRAPHY.fontFamily, fontWeight: 500, color: COLORS.text }}>
-              Method of Application
+              Date of Application
             </label>
             <select
-              value={candidateFilters.methodOfApplication}
-              onChange={(e) => setCandidateFilters({ ...candidateFilters, methodOfApplication: e.target.value })}
+              value={candidateFilters.dateRange}
+              onChange={(e) => handleDateRangeChange(e.target.value)}
               style={{ padding: '10px 14px', borderRadius: '8px', border: `1px solid ${COLORS.border}`, fontSize: TYPOGRAPHY.textImportant.fontSize, fontFamily: TYPOGRAPHY.fontFamily, backgroundColor: COLORS.white }}
             >
               <option value="">-- Select --</option>
-              <option value="Manual">Manual</option>
-              <option value="Online">Online</option>
+              <option value="today">Today</option>
+              <option value="last7days">Last 7 Days</option>
+              <option value="last30days">Last 30 Days</option>
+              <option value="custom">Custom Range</option>
             </select>
           </div>
+        </div>
+
+        {/* Custom Date Range (shown only when "Custom Range" is selected) */}
+        {candidateFilters.dateRange === 'custom' && (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(2, 1fr)',
+              gap: '16px',
+              marginBottom: '20px',
+            }}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: TYPOGRAPHY.textNote.fontSize, fontFamily: TYPOGRAPHY.fontFamily, fontWeight: 500, color: COLORS.text }}>
+                From Date
+              </label>
+              <input
+                type="date"
+                value={candidateFilters.dateFrom}
+                onChange={(e) => setCandidateFilters({ ...candidateFilters, dateFrom: e.target.value })}
+                style={{ padding: '10px 14px', borderRadius: '8px', border: `1px solid ${COLORS.border}`, fontSize: TYPOGRAPHY.textImportant.fontSize, fontFamily: TYPOGRAPHY.fontFamily, boxSizing: 'border-box' }}
+              />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: TYPOGRAPHY.textNote.fontSize, fontFamily: TYPOGRAPHY.fontFamily, fontWeight: 500, color: COLORS.text }}>
+                To Date
+              </label>
+              <input
+                type="date"
+                value={candidateFilters.dateTo}
+                onChange={(e) => setCandidateFilters({ ...candidateFilters, dateTo: e.target.value })}
+                style={{ padding: '10px 14px', borderRadius: '8px', border: `1px solid ${COLORS.border}`, fontSize: TYPOGRAPHY.textImportant.fontSize, fontFamily: TYPOGRAPHY.fontFamily, boxSizing: 'border-box' }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Advanced Filters - Collapsible */}
+        <div style={{ marginBottom: '20px' }}>
+          <button
+            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: 'transparent',
+              border: `1px solid ${COLORS.border}`,
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontSize: TYPOGRAPHY.textNote.fontSize,
+              fontFamily: TYPOGRAPHY.fontFamily,
+              color: COLORS.text,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+            }}
+          >
+            <span>{showAdvancedFilters ? '▼' : '▶'}</span>
+            <span>Advanced Filters</span>
+          </button>
+
+          {showAdvancedFilters && (
+            <div
+              style={{
+                marginTop: '16px',
+                padding: '16px',
+                backgroundColor: COLORS.lightBg,
+                borderRadius: '8px',
+                border: `1px solid ${COLORS.border}`,
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+                gap: '16px',
+              }}
+            >
+              {/* Vacancy */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: TYPOGRAPHY.textNote.fontSize, fontFamily: TYPOGRAPHY.fontFamily, fontWeight: 500, color: COLORS.text }}>
+                  Vacancy
+                </label>
+                <input
+                  type="text"
+                  value={candidateFilters.vacancy}
+                  onChange={(e) => setCandidateFilters({ ...candidateFilters, vacancy: e.target.value })}
+                  placeholder="Search by vacancy..."
+                  style={{ padding: '10px 14px', borderRadius: '8px', border: `1px solid ${COLORS.border}`, fontSize: TYPOGRAPHY.textImportant.fontSize, fontFamily: TYPOGRAPHY.fontFamily, boxSizing: 'border-box' }}
+                />
+              </div>
+
+              {/* Hiring Manager */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: TYPOGRAPHY.textNote.fontSize, fontFamily: TYPOGRAPHY.fontFamily, fontWeight: 500, color: COLORS.text }}>
+                  Hiring Manager
+                </label>
+                <input
+                  type="text"
+                  value={candidateFilters.hiringManager}
+                  onChange={(e) => setCandidateFilters({ ...candidateFilters, hiringManager: e.target.value })}
+                  placeholder="Search by hiring manager..."
+                  style={{ padding: '10px 14px', borderRadius: '8px', border: `1px solid ${COLORS.border}`, fontSize: TYPOGRAPHY.textImportant.fontSize, fontFamily: TYPOGRAPHY.fontFamily, boxSizing: 'border-box' }}
+                />
+              </div>
+
+              {/* Method of Application */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: TYPOGRAPHY.textNote.fontSize, fontFamily: TYPOGRAPHY.fontFamily, fontWeight: 500, color: COLORS.text }}>
+                  Method of Application
+                </label>
+                <select
+                  value={candidateFilters.methodOfApplication}
+                  onChange={(e) => setCandidateFilters({ ...candidateFilters, methodOfApplication: e.target.value })}
+                  style={{ padding: '10px 14px', borderRadius: '8px', border: `1px solid ${COLORS.border}`, fontSize: TYPOGRAPHY.textImportant.fontSize, fontFamily: TYPOGRAPHY.fontFamily, backgroundColor: COLORS.white }}
+                >
+                  <option value="">-- Select --</option>
+                  <option value="Manual">Manual</option>
+                  <option value="Online">Online</option>
+                </select>
+              </div>
+            </div>
+          )}
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
@@ -621,7 +714,7 @@ const Recruitment: React.FC = () => {
                       <td style={{ padding: '10px 14px' }}>{candidate.date_of_application}</td>
                       <td style={{ padding: '10px 14px' }}>{candidate.status}</td>
                       <td style={{ padding: '10px 14px' }}>
-                        <button onClick={() => handleEditCandidate(candidate)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '18px', marginRight: '8px', color: COLORS.primary }} title="Edit">
+                        <button onClick={() => handleEditCandidate(candidate)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '18px', marginRight: '8px', color: COLORS.text }} title="Edit">
                           ✏️
                         </button>
                         <button onClick={() => handleDeleteCandidate(candidate.id)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '18px', color: COLORS.textLight }} title="Delete">
@@ -641,7 +734,7 @@ const Recruitment: React.FC = () => {
       {showCandidateModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => setShowCandidateModal(false)}>
           <div style={{ backgroundColor: COLORS.white, padding: '32px', borderRadius: '8px', width: '90%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
-            <h2 style={{ color: COLORS.primary, fontSize: '20px', fontFamily: TYPOGRAPHY.fontFamily, fontWeight: 500, marginTop: 0, marginBottom: '24px' }}>
+            <h2 style={{ color: COLORS.text, fontSize: '20px', fontFamily: TYPOGRAPHY.fontFamily, fontWeight: 500, marginTop: 0, marginBottom: '24px' }}>
               {editingCandidate ? 'Edit Candidate' : 'Add Candidate'}
             </h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -803,7 +896,7 @@ const Recruitment: React.FC = () => {
                       <td style={{ padding: '10px 14px' }}>{vacancy.hiring_manager || '(Deleted)'}</td>
                       <td style={{ padding: '10px 14px' }}>{vacancy.status.charAt(0).toUpperCase() + vacancy.status.slice(1)}</td>
                       <td style={{ padding: '10px 14px' }}>
-                        <button onClick={() => handleEditVacancy(vacancy)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '18px', marginRight: '8px', color: COLORS.primary }} title="Edit">
+                        <button onClick={() => handleEditVacancy(vacancy)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '18px', marginRight: '8px', color: COLORS.text }} title="Edit">
                           ✏️
                         </button>
                         <button onClick={() => handleDeleteVacancy(vacancy.id)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '18px', color: COLORS.textLight }} title="Delete">
@@ -823,7 +916,7 @@ const Recruitment: React.FC = () => {
       {showVacancyModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => setShowVacancyModal(false)}>
           <div style={{ backgroundColor: COLORS.white, padding: '32px', borderRadius: '8px', width: '90%', maxWidth: '600px' }} onClick={(e) => e.stopPropagation()}>
-            <h2 style={{ color: COLORS.primary, fontSize: '20px', fontFamily: TYPOGRAPHY.fontFamily, fontWeight: 500, marginTop: 0, marginBottom: '24px' }}>
+            <h2 style={{ color: COLORS.text, fontSize: '20px', fontFamily: TYPOGRAPHY.fontFamily, fontWeight: 500, marginTop: 0, marginBottom: '24px' }}>
               {editingVacancy ? 'Edit Vacancy' : 'Add Vacancy'}
             </h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -879,25 +972,11 @@ const Recruitment: React.FC = () => {
 
   return (
     <div style={{ padding: '24px 32px', maxWidth: '100%', margin: '0', backgroundColor: COLORS.lightBg, minHeight: 'calc(100vh - 80px)' }}>
-      <button
-        onClick={() => navigate('/dashboard')}
-        style={{
-          padding: '8px 16px',
-          backgroundColor: COLORS.textLight,
-          color: COLORS.white,
-          border: 'none',
-          borderRadius: '6px',
-          cursor: 'pointer',
-          fontSize: TYPOGRAPHY.textNote.fontSize,
-          fontFamily: TYPOGRAPHY.fontFamily,
-          fontWeight: 500,
-          marginBottom: '20px',
-        }}
-      >
-        ← Back to Dashboard
-      </button>
+      <div style={{ marginBottom: '16px' }}>
+        <BackToDashboard />
+      </div>
 
-      <h1 style={{ color: COLORS.primary, marginBottom: '16px', marginTop: 0, fontSize: TYPOGRAPHY.heading.fontSize, fontFamily: TYPOGRAPHY.fontFamily, fontWeight: TYPOGRAPHY.heading.fontWeight }}>
+      <h1 style={{ color: COLORS.text, marginBottom: '16px', marginTop: 0, fontSize: TYPOGRAPHY.heading.fontSize, fontFamily: TYPOGRAPHY.fontFamily, fontWeight: TYPOGRAPHY.heading.fontWeight }}>
         Onboarding
       </h1>
 
@@ -913,8 +992,8 @@ const Recruitment: React.FC = () => {
                 padding: '10px 18px',
                 borderRadius: '24px',
                 border: 'none',
-                backgroundColor: isActive ? COLORS.primary : '#f5f5f5',
-                color: isActive ? COLORS.white : COLORS.textLight,
+                backgroundColor: isActive ? '#f5f5f5' : '#f5f5f5',
+                color: isActive ? COLORS.text : COLORS.textLight,
                 fontFamily: TYPOGRAPHY.fontFamily,
                 fontSize: TYPOGRAPHY.textImportant.fontSize,
                 cursor: 'pointer',

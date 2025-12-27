@@ -187,3 +187,5 @@ If you want to connect these to the backend:
 
 All pages are fully functional with local state management and ready to be connected to your backend!
 
+
+

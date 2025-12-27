@@ -134,3 +134,5 @@ SELECT * FROM hrms_data.users WHERE status = 'active';
 - Only admins can access this page (protected route)
 - Status field prevents accidental permanent deletion (soft delete)
 
+
+

@@ -121,3 +121,5 @@ The table is pre-populated with:
 - The table uses an `updated_at` trigger to automatically update the timestamp on changes
 - Search functionality filters by name, city, and country
 
+
+

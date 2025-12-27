@@ -19,3 +19,5 @@ WHERE table_schema = 'hrms_data'
 AND table_name = 'locations'
 AND column_name = 'notes';
 
+
+

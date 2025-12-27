@@ -208,3 +208,5 @@ SELECT
     COUNT(*) as record_count 
 FROM hrms_data.leave_entitlements;
 
+
+

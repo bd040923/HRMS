@@ -141,3 +141,5 @@ SELECT
     'Tables created successfully' as status,
     (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'hrms_data' AND table_name IN ('projects', 'activities', 'timesheets', 'timesheet_entries')) as table_count;
 
+
+

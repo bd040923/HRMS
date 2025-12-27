@@ -205,3 +205,5 @@ SELECT 'languages', COUNT(*) FROM hrms_data.languages
 UNION ALL
 SELECT 'memberships', COUNT(*) FROM hrms_data.memberships;
 
+
+

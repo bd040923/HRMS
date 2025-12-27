@@ -60,3 +60,5 @@ $env:PGPASSWORD = $null
 Write-Host ""
 Write-Host "Restart your server and test the endpoints again." -ForegroundColor Cyan
 
+
+

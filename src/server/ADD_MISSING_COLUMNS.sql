@@ -15,3 +15,5 @@ WHERE table_schema = 'hrms_data'
 AND table_name = 'employees'
 ORDER BY ordinal_position;
 
+
+

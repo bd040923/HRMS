@@ -35,3 +35,5 @@ GRANT USAGE, SELECT ON SEQUENCE hrms_data.attendance_records_id_seq TO PUBLIC;
 -- Verify table was created
 SELECT 'Table created successfully' as status;
 
+
+

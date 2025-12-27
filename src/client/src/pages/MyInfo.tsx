@@ -7,6 +7,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiService } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import BackToDashboard from '../components/BackToDashboard';
 
 const COLORS = {
   primary: '#78176b',
@@ -26,15 +27,18 @@ const TYPOGRAPHY = {
 type InfoTab = 'personal' | 'contact' | 'emergency' | 'job' | 'salary' | 'reportTo' | 'qualifications';
 
 type KycDocKey = 'aadhaar' | 'pan' | 'bank';
-type KycStatus = 'Pending' | 'Approved' | 'Rejected' | 'Re-upload Required' | 'Under Review';
+type KycStatus = 'Not Uploaded' | 'Uploaded' | 'Pending' | 'Approved' | 'Rejected' | 'Re-upload Required' | 'Under Review';
 type KycDoc = {
   key: KycDocKey;
   label: string;
-  fileName?: string;
-  uploadedAt?: string;
+  fileName?: string | null;
+  uploadedAt?: string | null;
+  submittedAt?: string | null;
   status: KycStatus;
-  url?: string;
-  maskedNumber?: string;
+  url?: string | null;
+  maskedNumber?: string | null;
+  rejectionReason?: string | null;
+  isCompleted?: boolean;
 };
 
 const MyInfo: React.FC = () => {
@@ -56,12 +60,13 @@ const MyInfo: React.FC = () => {
   const profileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [kycDocs, setKycDocs] = useState<Record<KycDocKey, KycDoc>>({
-    aadhaar: { key: 'aadhaar', label: 'Aadhaar Card', status: 'Pending' },
-    pan: { key: 'pan', label: 'PAN Card', status: 'Pending' },
-    bank: { key: 'bank', label: 'Bank Statement', status: 'Pending' },
+    aadhaar: { key: 'aadhaar', label: 'Aadhaar Card', status: 'Not Uploaded' },
+    pan: { key: 'pan', label: 'PAN Card', status: 'Not Uploaded' },
+    bank: { key: 'bank', label: 'Banking Proof (first page of bank passbook)', status: 'Not Uploaded' },
   });
-  const [overallStatus, setOverallStatus] = useState<KycStatus>('Pending');
+  const [overallStatus, setOverallStatus] = useState<KycStatus>('Not Uploaded');
   const [submitLoading, setSubmitLoading] = useState(false);
+  const [submittingDoc, setSubmittingDoc] = useState<KycDocKey | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<InfoTab>('personal');
 
@@ -97,13 +102,13 @@ const MyInfo: React.FC = () => {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
         <div>
-          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.primary }}>
+          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.text }}>
             Employee Id
           </label>
           <input type="text" defaultValue="4322" style={{ width: '100%', padding: '10px', border: `1px solid ${COLORS.border}`, borderRadius: '6px', fontFamily: TYPOGRAPHY.fontFamily, boxSizing: 'border-box' }} />
         </div>
         <div>
-          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.primary }}>
+          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.text }}>
             Other Id
           </label>
           <input type="text" defaultValue="4957988" style={{ width: '100%', padding: '10px', border: `1px solid ${COLORS.border}`, borderRadius: '6px', fontFamily: TYPOGRAPHY.fontFamily, boxSizing: 'border-box' }} />
@@ -112,13 +117,13 @@ const MyInfo: React.FC = () => {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
         <div>
-          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.primary }}>
+          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.text }}>
             Driver's License Number
           </label>
           <input type="text" defaultValue="58768" style={{ width: '100%', padding: '10px', border: `1px solid ${COLORS.border}`, borderRadius: '6px', fontFamily: TYPOGRAPHY.fontFamily, boxSizing: 'border-box' }} />
         </div>
         <div>
-          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.primary }}>
+          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.text }}>
             License Expiry Date
           </label>
           <input type="date" defaultValue="2023-18-10" style={{ width: '100%', padding: '10px', border: `1px solid ${COLORS.border}`, borderRadius: '6px', fontFamily: TYPOGRAPHY.fontFamily, boxSizing: 'border-box' }} />
@@ -127,7 +132,7 @@ const MyInfo: React.FC = () => {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
         <div>
-          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.primary }}>
+          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.text }}>
             Nationality
           </label>
           <select style={{ width: '100%', padding: '10px', border: `1px solid ${COLORS.border}`, borderRadius: '6px', fontFamily: TYPOGRAPHY.fontFamily, backgroundColor: COLORS.white, boxSizing: 'border-box' }}>
@@ -135,7 +140,7 @@ const MyInfo: React.FC = () => {
           </select>
         </div>
         <div>
-          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.primary }}>
+          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.text }}>
             Marital Status
           </label>
           <select style={{ width: '100%', padding: '10px', border: `1px solid ${COLORS.border}`, borderRadius: '6px', fontFamily: TYPOGRAPHY.fontFamily, backgroundColor: COLORS.white, boxSizing: 'border-box' }}>
@@ -147,13 +152,13 @@ const MyInfo: React.FC = () => {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
         <div>
-          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.primary }}>
+          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.text }}>
             Date of Birth
           </label>
           <input type="date" defaultValue="2023-21-10" style={{ width: '100%', padding: '10px', border: `1px solid ${COLORS.border}`, borderRadius: '6px', fontFamily: TYPOGRAPHY.fontFamily, boxSizing: 'border-box' }} />
         </div>
         <div>
-          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.primary }}>
+          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.text }}>
             Gender
           </label>
           <div style={{ display: 'flex', gap: '24px', paddingTop: '10px' }}>
@@ -195,7 +200,7 @@ const MyInfo: React.FC = () => {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
         <div>
-          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.primary }}>
+          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.text }}>
             Blood Type
           </label>
           <select style={{ width: '100%', padding: '10px', border: `1px solid ${COLORS.border}`, borderRadius: '6px', fontFamily: TYPOGRAPHY.fontFamily, backgroundColor: COLORS.white, boxSizing: 'border-box' }}>
@@ -203,7 +208,7 @@ const MyInfo: React.FC = () => {
           </select>
         </div>
         <div>
-          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.primary }}>
+          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.text }}>
             Test_Field
           </label>
           <input type="text" defaultValue="445" style={{ width: '100%', padding: '10px', border: `1px solid ${COLORS.border}`, borderRadius: '6px', fontFamily: TYPOGRAPHY.fontFamily, boxSizing: 'border-box' }} />
@@ -233,7 +238,7 @@ const MyInfo: React.FC = () => {
           padding: '6px 16px',
           border: `1px solid ${COLORS.border}`,
           backgroundColor: COLORS.white,
-          color: COLORS.primary,
+          color: COLORS.text,
           borderRadius: '6px',
           cursor: 'pointer',
           fontFamily: TYPOGRAPHY.fontFamily,
@@ -292,19 +297,19 @@ const MyInfo: React.FC = () => {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '20px' }}>
         <div>
-          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.primary }}>
+          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.text }}>
             Street 1
           </label>
           <input type="text" defaultValue="123 Test St" style={{ width: '100%', padding: '10px', border: `1px solid ${COLORS.border}`, borderRadius: '6px', fontFamily: TYPOGRAPHY.fontFamily, boxSizing: 'border-box' }} />
         </div>
         <div>
-          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.primary }}>
+          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.text }}>
             Street 2
           </label>
           <input type="text" style={{ width: '100%', padding: '10px', border: `1px solid ${COLORS.border}`, borderRadius: '6px', fontFamily: TYPOGRAPHY.fontFamily, boxSizing: 'border-box' }} />
         </div>
         <div>
-          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.primary }}>
+          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.text }}>
             City
           </label>
           <input type="text" style={{ width: '100%', padding: '10px', border: `1px solid ${COLORS.border}`, borderRadius: '6px', fontFamily: TYPOGRAPHY.fontFamily, boxSizing: 'border-box' }} />
@@ -313,19 +318,19 @@ const MyInfo: React.FC = () => {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '20px' }}>
         <div>
-          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.primary }}>
+          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.text }}>
             State/Province
           </label>
           <input type="text" style={{ width: '100%', padding: '10px', border: `1px solid ${COLORS.border}`, borderRadius: '6px', fontFamily: TYPOGRAPHY.fontFamily, boxSizing: 'border-box' }} />
         </div>
         <div>
-          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.primary }}>
+          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.text }}>
             Zip/Postal Code
           </label>
           <input type="text" style={{ width: '100%', padding: '10px', border: `1px solid ${COLORS.border}`, borderRadius: '6px', fontFamily: TYPOGRAPHY.fontFamily, boxSizing: 'border-box' }} />
         </div>
         <div>
-          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.primary }}>
+          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.text }}>
             Country
           </label>
           <select style={{ width: '100%', padding: '10px', border: `1px solid ${COLORS.border}`, borderRadius: '6px', fontFamily: TYPOGRAPHY.fontFamily, backgroundColor: COLORS.white, boxSizing: 'border-box' }}>
@@ -340,19 +345,19 @@ const MyInfo: React.FC = () => {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '20px' }}>
         <div>
-          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.primary }}>
+          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.text }}>
             Home
           </label>
           <input type="text" style={{ width: '100%', padding: '10px', border: `1px solid ${COLORS.border}`, borderRadius: '6px', fontFamily: TYPOGRAPHY.fontFamily, boxSizing: 'border-box' }} />
         </div>
         <div>
-          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.primary }}>
+          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.text }}>
             Mobile
           </label>
           <input type="text" defaultValue="9901234567" style={{ width: '100%', padding: '10px', border: `1px solid ${COLORS.border}`, borderRadius: '6px', fontFamily: TYPOGRAPHY.fontFamily, boxSizing: 'border-box' }} />
         </div>
         <div>
-          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.primary }}>
+          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.text }}>
             Work
           </label>
           <input type="text" defaultValue="112-888-7832" style={{ width: '100%', padding: '10px', border: `1px solid ${COLORS.border}`, borderRadius: '6px', fontFamily: TYPOGRAPHY.fontFamily, boxSizing: 'border-box' }} />
@@ -365,13 +370,13 @@ const MyInfo: React.FC = () => {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
         <div>
-          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.primary }}>
+          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.text }}>
             Work Email
           </label>
           <input type="email" defaultValue="test@email.com" style={{ width: '100%', padding: '10px', border: `1px solid ${COLORS.border}`, borderRadius: '6px', fontFamily: TYPOGRAPHY.fontFamily, boxSizing: 'border-box' }} />
         </div>
         <div>
-          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.primary }}>
+          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.text }}>
             Other Email
           </label>
           <input type="email" style={{ width: '100%', padding: '10px', border: `1px solid ${COLORS.border}`, borderRadius: '6px', fontFamily: TYPOGRAPHY.fontFamily, boxSizing: 'border-box' }} />
@@ -405,7 +410,7 @@ const MyInfo: React.FC = () => {
           padding: '6px 16px',
           border: `1px solid ${COLORS.border}`,
           backgroundColor: COLORS.white,
-          color: COLORS.primary,
+          color: COLORS.text,
           borderRadius: '6px',
           cursor: 'pointer',
           fontFamily: TYPOGRAPHY.fontFamily,
@@ -430,7 +435,7 @@ const MyInfo: React.FC = () => {
           padding: '6px 16px',
           border: `1px solid ${COLORS.border}`,
             backgroundColor: COLORS.white,
-          color: COLORS.primary,
+          color: COLORS.text,
           borderRadius: '6px',
           cursor: 'pointer',
           fontFamily: TYPOGRAPHY.fontFamily,
@@ -466,7 +471,7 @@ const MyInfo: React.FC = () => {
           padding: '6px 16px',
             border: `1px solid ${COLORS.border}`,
           backgroundColor: COLORS.white,
-                color: COLORS.primary,
+                color: COLORS.text,
           borderRadius: '6px',
           cursor: 'pointer',
           fontFamily: TYPOGRAPHY.fontFamily,
@@ -491,7 +496,7 @@ const MyInfo: React.FC = () => {
           padding: '6px 16px',
           border: `1px solid ${COLORS.border}`,
           backgroundColor: COLORS.white,
-          color: COLORS.primary,
+          color: COLORS.text,
           borderRadius: '6px',
           cursor: 'pointer',
                 fontFamily: TYPOGRAPHY.fontFamily,
@@ -527,7 +532,7 @@ const MyInfo: React.FC = () => {
           padding: '6px 16px',
           border: `1px solid ${COLORS.border}`,
           backgroundColor: COLORS.white,
-          color: COLORS.primary,
+          color: COLORS.text,
           borderRadius: '6px',
           cursor: 'pointer',
                 fontFamily: TYPOGRAPHY.fontFamily,
@@ -552,7 +557,7 @@ const MyInfo: React.FC = () => {
           padding: '6px 16px',
           border: `1px solid ${COLORS.border}`,
           backgroundColor: COLORS.white,
-          color: COLORS.primary,
+          color: COLORS.text,
           borderRadius: '6px',
           cursor: 'pointer',
           fontFamily: TYPOGRAPHY.fontFamily,
@@ -657,19 +662,19 @@ const MyInfo: React.FC = () => {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '20px' }}>
         <div>
-          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.primary }}>
+          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.text }}>
             Joined Date
           </label>
           <input type="date" defaultValue="1990-11-10" style={{ width: '100%', padding: '10px', border: `1px solid ${COLORS.border}`, borderRadius: '6px', fontFamily: TYPOGRAPHY.fontFamily, boxSizing: 'border-box', backgroundColor: COLORS.lightBg }} readOnly />
         </div>
         <div>
-          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.primary }}>
+          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.text }}>
             Job Title
           </label>
           <input type="text" defaultValue="HR Manager" style={{ width: '100%', padding: '10px', border: `1px solid ${COLORS.border}`, borderRadius: '6px', fontFamily: TYPOGRAPHY.fontFamily, boxSizing: 'border-box', backgroundColor: COLORS.lightBg }} readOnly />
         </div>
         <div>
-          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.primary }}>
+          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.text }}>
             Job Specification
           </label>
           <input type="text" defaultValue="Not Defined" style={{ width: '100%', padding: '10px', border: `1px solid ${COLORS.border}`, borderRadius: '6px', fontFamily: TYPOGRAPHY.fontFamily, boxSizing: 'border-box', backgroundColor: COLORS.lightBg }} readOnly />
@@ -678,19 +683,19 @@ const MyInfo: React.FC = () => {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '20px' }}>
         <div>
-          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.primary }}>
+          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.text }}>
             Job Category
           </label>
           <input type="text" defaultValue="Officials and Managers" style={{ width: '100%', padding: '10px', border: `1px solid ${COLORS.border}`, borderRadius: '6px', fontFamily: TYPOGRAPHY.fontFamily, boxSizing: 'border-box', backgroundColor: COLORS.lightBg }} readOnly />
         </div>
         <div>
-          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.primary }}>
+          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.text }}>
             Sub Unit
           </label>
           <input type="text" defaultValue="Human Resources" style={{ width: '100%', padding: '10px', border: `1px solid ${COLORS.border}`, borderRadius: '6px', fontFamily: TYPOGRAPHY.fontFamily, boxSizing: 'border-box', backgroundColor: COLORS.lightBg }} readOnly />
           </div>
         <div>
-          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.primary }}>
+          <label style={{ display: 'block', marginBottom: '8px', fontFamily: TYPOGRAPHY.fontFamily, fontSize: '14px', color: COLORS.text }}>
             Location
           </label>
           <input type="text" defaultValue="Texas R&D" style={{ width: '100%', padding: '10px', border: `1px solid ${COLORS.border}`, borderRadius: '6px', fontFamily: TYPOGRAPHY.fontFamily, boxSizing: 'border-box', backgroundColor: COLORS.lightBg }} readOnly />
@@ -828,7 +833,7 @@ const MyInfo: React.FC = () => {
           padding: '6px 16px',
           border: `1px solid ${COLORS.border}`,
           backgroundColor: COLORS.white,
-          color: COLORS.primary,
+          color: COLORS.text,
           borderRadius: '6px',
           cursor: 'pointer',
           fontFamily: TYPOGRAPHY.fontFamily,
@@ -849,7 +854,7 @@ const MyInfo: React.FC = () => {
           padding: '6px 16px',
           border: `1px solid ${COLORS.border}`,
           backgroundColor: COLORS.white,
-          color: COLORS.primary,
+          color: COLORS.text,
           borderRadius: '6px',
           cursor: 'pointer',
           fontFamily: TYPOGRAPHY.fontFamily,
@@ -870,7 +875,7 @@ const MyInfo: React.FC = () => {
           padding: '6px 16px',
           border: `1px solid ${COLORS.border}`,
           backgroundColor: COLORS.white,
-          color: COLORS.primary,
+          color: COLORS.text,
           borderRadius: '6px',
           cursor: 'pointer',
           fontFamily: TYPOGRAPHY.fontFamily,
@@ -891,7 +896,7 @@ const MyInfo: React.FC = () => {
           padding: '6px 16px',
           border: `1px solid ${COLORS.border}`,
           backgroundColor: COLORS.white,
-          color: COLORS.primary,
+          color: COLORS.text,
           borderRadius: '6px',
           cursor: 'pointer',
           fontFamily: TYPOGRAPHY.fontFamily,
@@ -940,7 +945,7 @@ const MyInfo: React.FC = () => {
           padding: '6px 16px',
           border: `1px solid ${COLORS.border}`,
           backgroundColor: COLORS.white,
-          color: COLORS.primary,
+          color: COLORS.text,
           borderRadius: '6px',
           cursor: 'pointer',
           fontFamily: TYPOGRAPHY.fontFamily,
@@ -961,7 +966,7 @@ const MyInfo: React.FC = () => {
           padding: '6px 16px',
           border: `1px solid ${COLORS.border}`,
             backgroundColor: COLORS.white,
-          color: COLORS.primary,
+          color: COLORS.text,
           borderRadius: '6px',
           cursor: 'pointer',
           fontFamily: TYPOGRAPHY.fontFamily,
@@ -986,7 +991,7 @@ const MyInfo: React.FC = () => {
           padding: '6px 16px',
             border: `1px solid ${COLORS.border}`,
           backgroundColor: COLORS.white,
-          color: COLORS.primary,
+          color: COLORS.text,
           borderRadius: '6px',
           cursor: 'pointer',
               fontFamily: TYPOGRAPHY.fontFamily,
@@ -1087,55 +1092,152 @@ const MyInfo: React.FC = () => {
 
   const loadProfile = async () => {
     try {
-      const data = await apiService.getEmployeeProfile(profile.id || 1);
+      // Use authenticated endpoint - no employee_id needed, backend uses logged-in user
+      const data = await apiService.getEmployeeProfile();
       if (data) {
         setProfile((prev: any) => ({
           ...prev,
           ...data,
-          id: data.id || prev.id || 1,
+          id: data.id || prev.id,
           employeeId: data.employeeId || data.employee_id || prev.employeeId || '',
-          avatarUrl: data.avatarUrl || data.avatar_url || prev.avatarUrl
+          name: data.name || prev.name || '',
+          email: data.email || prev.email || '',
+          department: data.department || prev.department || '',
+          phone: data.phone || prev.phone || '',
+          doj: data.doj || prev.doj || '',
+          location: data.location || prev.location || '',
+          avatarUrl: data.avatarUrl || data.avatar_url || prev.avatarUrl || '/api/employee/profile/avatar-placeholder'
         }));
       }
     } catch (err) {
-      // fallback to defaults
+      console.error('Error loading profile:', err);
+      // Keep existing profile data on error
     }
   };
 
   const loadKyc = async () => {
     try {
-      const data = await apiService.getKycStatus(profile.id || 1);
+      console.log('📥 Loading KYC status...');
+      // Use new authenticated endpoint - no employee_id needed
+      const data = await apiService.getKycStatus();
+      console.log('📥 KYC data received:', data);
+      
       if (data?.documents) {
         setKycDocs((prev) => {
           const updated = { ...prev };
           Object.keys(prev).forEach((key) => {
             const doc = data.documents[key];
-            if (doc) {
+            if (doc && doc.file_name && doc.upload_status === 'UPLOADED') {
+              // Document is uploaded - determine status based on verification_status
+              let frontendStatus: KycStatus = 'Uploaded';
+              const verificationStatus = doc.verification_status || doc.verificationStatus;
+              
+              if (verificationStatus === 'APPROVED') {
+                frontendStatus = 'Approved';
+              } else if (verificationStatus === 'REJECTED') {
+                frontendStatus = 'Rejected';
+              } else if (verificationStatus === 'PENDING') {
+                frontendStatus = 'Under Review';
+              } else {
+                // verification_status is NULL - uploaded but not submitted
+                frontendStatus = 'Uploaded';
+              }
+              
+              const submittedAt = doc.submitted_at || doc.submittedAt || null;
               updated[key as KycDocKey] = {
                 key: key as KycDocKey,
                 label: prev[key as KycDocKey].label,
-                fileName: doc.fileName || doc.file_name,
-                uploadedAt: doc.uploadedAt || doc.uploaded_at,
-                status: (doc.status || 'Pending') as KycStatus,
-                url: doc.url || doc.file_path,
-                maskedNumber: doc.maskedNumber || doc.masked_number,
+                fileName: doc.file_name || doc.fileName || null,
+                uploadedAt: doc.uploaded_at || doc.uploadedAt || null,
+                submittedAt: submittedAt,
+                status: frontendStatus,
+                url: doc.file_url || doc.url || doc.file_path || null,
+                maskedNumber: doc.masked_number || doc.maskedNumber || null,
+                rejectionReason: doc.rejection_reason || doc.rejectionReason || null,
+                isCompleted: submittedAt !== null && submittedAt !== undefined,
+              };
+            } else {
+              // No document uploaded - show "Not Uploaded"
+              updated[key as KycDocKey] = {
+                ...prev[key as KycDocKey],
+                fileName: null,
+                uploadedAt: null,
+                submittedAt: null,
+                status: 'Not Uploaded' as KycStatus,
+                url: null,
+                maskedNumber: null,
+                rejectionReason: null,
+                isCompleted: false,
               };
             }
           });
           return updated;
         });
       }
-      if (data?.overallStatus) {
-        setOverallStatus((data.overallStatus as KycStatus) || 'Pending');
+      
+      // Compute overall status from the updated documents
+      const updatedDocs = { ...kycDocs };
+      Object.keys(data.documents || {}).forEach((key) => {
+        const doc = data.documents[key];
+        if (doc && doc.file_name && doc.upload_status === 'UPLOADED') {
+          const verificationStatus = doc.verification_status || doc.verificationStatus;
+          let status: KycStatus = 'Uploaded';
+          if (verificationStatus === 'APPROVED') {
+            status = 'Approved';
+          } else if (verificationStatus === 'REJECTED') {
+            status = 'Rejected';
+          } else if (verificationStatus === 'PENDING') {
+            status = 'Under Review';
+          }
+          updatedDocs[key as KycDocKey] = {
+            ...updatedDocs[key as KycDocKey],
+            status
+          };
+        }
+      });
+      
+      // Compute overall status
+      const allUploaded = mandatoryKeys.every(k => updatedDocs[k]?.fileName);
+      const allApproved = mandatoryKeys.every(k => updatedDocs[k]?.status === 'Approved');
+      const anyRejected = mandatoryKeys.some(k => updatedDocs[k]?.status === 'Rejected');
+      const anyUnderReview = mandatoryKeys.some(k => updatedDocs[k]?.status === 'Under Review');
+      
+      if (!allUploaded) {
+        setOverallStatus('Not Uploaded');
+      } else if (allApproved) {
+        setOverallStatus('Approved');
+      } else if (anyRejected) {
+        setOverallStatus('Re-upload Required');
+      } else if (anyUnderReview) {
+        setOverallStatus('Under Review');
+      } else {
+        setOverallStatus('Uploaded');
       }
-    } catch (err) {
-      // ignore for now
+    } catch (err: any) {
+      console.error('Error loading KYC:', err);
+      // Reset to default state on error
+      setKycDocs({
+        aadhaar: { key: 'aadhaar', label: 'Aadhaar Card', status: 'Not Uploaded' },
+        pan: { key: 'pan', label: 'PAN Card', status: 'Not Uploaded' },
+        bank: { key: 'bank', label: 'Banking Proof (first page of bank passbook)', status: 'Not Uploaded' },
+      });
+      setOverallStatus('Not Uploaded');
     }
   };
 
   useEffect(() => {
     loadProfile();
     loadKyc();
+    
+    // Auto-refresh KYC status every 30 seconds to get admin updates
+    // This will check the current state and refresh if needed
+    const kycRefreshInterval = setInterval(() => {
+      loadKyc();
+    }, 30000); // Refresh every 30 seconds
+    
+    return () => {
+      clearInterval(kycRefreshInterval);
+    };
   }, []);
 
   const validateFile = (file: File, docKey: KycDocKey) => {
@@ -1162,8 +1264,8 @@ const MyInfo: React.FC = () => {
       validateFile(file, 'aadhaar'); // size/type check
       const formData = new FormData();
       formData.append('avatar', file);
-      formData.append('employee_id', String(profile.id || 1));
-      const resp = await apiService.updateEmployeeProfile(formData, profile.id || 1);
+      // No need to pass employee_id - backend uses authenticated user's employee_id
+      const resp = await apiService.updateEmployeeProfile(formData);
       const serverUrl = resp?.employee?.avatar_url || resp?.employee?.avatarUrl || resp?.avatarUrl;
       const objectUrl = URL.createObjectURL(file);
       setProfile((prev: any) => ({ ...prev, avatarUrl: serverUrl || objectUrl }));
@@ -1181,10 +1283,17 @@ const MyInfo: React.FC = () => {
       const formData = new FormData();
       formData.append('documentType', docKey);
       formData.append('file', file);
-      formData.append('employee_id', String(profile.id || 1));
-      await apiService.uploadKycDocument(formData, profile.id || 1);
-      await loadKyc();
+      // No employee_id needed - backend uses authentication
+      console.log(`📤 Uploading ${docKey} document:`, file.name);
+      const response = await apiService.uploadKycDocument(formData);
+      console.log('✅ Upload response:', response);
+      
+      // Wait a bit for database to commit, then reload
+      setTimeout(async () => {
+        await loadKyc();
+      }, 300);
     } catch (err: any) {
+      console.error('❌ Upload error:', err);
       setErrorMsg(err.message || 'Upload failed');
     }
   };
@@ -1192,26 +1301,44 @@ const MyInfo: React.FC = () => {
   const allMandatoryUploaded = mandatoryKeys.every(
     (k) => kycDocs[k]?.fileName
   );
-  const completed = mandatoryKeys.filter((k) => kycDocs[k]?.fileName).length;
+  const completed = mandatoryKeys.filter((k) => kycDocs[k]?.isCompleted).length;
+  const uploadedCount = mandatoryKeys.filter((k) => kycDocs[k]?.fileName).length;
 
+  // "Send All for Approval" is enabled only when all sections are completed (submitted)
+  const allSectionsCompleted = mandatoryKeys.every((k) => kycDocs[k]?.isCompleted);
+  
   const canSubmit =
-    allMandatoryUploaded &&
-    overallStatus !== 'Under Review';
+    allSectionsCompleted &&
+    (overallStatus === 'Uploaded' || mandatoryKeys.some(k => kycDocs[k]?.status === 'Uploaded'));
+
+  const handleSubmitDocument = async (docKey: KycDocKey) => {
+    const doc = kycDocs[docKey];
+    if (!doc.fileName || doc.isCompleted || doc.status === 'Under Review' || doc.status === 'Approved') {
+      return;
+    }
+    
+    try {
+      setErrorMsg(null);
+      setSubmittingDoc(docKey);
+      await apiService.submitKycDocument(docKey);
+      // Reload KYC data to get updated status from backend
+      await loadKyc();
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to submit document');
+    } finally {
+      setSubmittingDoc(null);
+    }
+  };
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
     try {
       setErrorMsg(null);
       setSubmitLoading(true);
-      await apiService.updateKycStatus('Under Review', profile.id || 1);
-      setOverallStatus('Under Review');
-      setKycDocs((prev) => {
-        const updated = { ...prev };
-        mandatoryKeys.forEach(k => {
-          updated[k] = { ...updated[k], status: 'Under Review' };
-        });
-        return updated;
-      });
+      // Use new submit endpoint (bulk submit all completed documents)
+      await apiService.submitKycForReview();
+      // Reload KYC data to get updated status from backend
+      await loadKyc();
     } catch (err: any) {
       setErrorMsg(err.message || 'Failed to submit');
     } finally {
@@ -1236,6 +1363,10 @@ const MyInfo: React.FC = () => {
         return { ...base, backgroundColor: '#fff4e5', color: '#b26a00' };
       case 'Under Review':
         return { ...base, backgroundColor: '#ede7f6', color: COLORS.primary };
+      case 'Uploaded':
+        return { ...base, backgroundColor: '#e3f2fd', color: '#1976d2' };
+      case 'Not Uploaded':
+        return { ...base, backgroundColor: COLORS.lightBg, color: COLORS.textLight };
       default:
         return { ...base, backgroundColor: COLORS.lightBg, color: COLORS.text };
     }
@@ -1247,37 +1378,102 @@ const MyInfo: React.FC = () => {
   };
 
   const renderKycCard = (doc: KycDoc) => {
-    const disabled =
-      overallStatus === 'Under Review' && doc.status !== 'Rejected';
+    const isCompleted = doc.isCompleted || false;
+    const isReadOnly = isCompleted && (doc.status === 'Under Review' || doc.status === 'Approved');
+    const canUpload = !isReadOnly || doc.status === 'Rejected';
+    const canSubmit = doc.fileName && !isCompleted && doc.status !== 'Under Review' && doc.status !== 'Approved';
+    const isSubmitting = submittingDoc === doc.key;
+    
+    const formatDate = (dateStr: string | null | undefined) => {
+      if (!dateStr) return '—';
+      try {
+        const date = new Date(dateStr);
+        return date.toLocaleString('en-GB', { 
+          day: '2-digit', 
+          month: 'short', 
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+      } catch {
+        return dateStr;
+      }
+    };
+
     return (
       <div key={doc.key} style={{
-        border: `1px solid ${COLORS.border}`,
-        borderRadius: '10px',
-        padding: '14px',
         backgroundColor: COLORS.white,
-        boxShadow: '0 4px 10px rgba(0,0,0,0.03)',
+        border: `2px solid ${isCompleted ? COLORS.success : COLORS.border}`,
+        borderRadius: '10px',
+        padding: '16px',
         display: 'flex',
         flexDirection: 'column',
         gap: '8px',
-        minHeight: '190px'
+        minHeight: '240px',
+        opacity: isReadOnly ? 0.85 : 1,
+        boxShadow: '0 4px 10px rgba(0,0,0,0.03)'
       }}>
-        <div style={{ fontFamily: TYPOGRAPHY.fontFamily, color: COLORS.text, fontWeight: 600, fontSize: '15px' }}>
-          {doc.label} {mandatoryKeys.includes(doc.key) ? <span style={{ color: COLORS.primary }}>*</span> : null}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ fontFamily: TYPOGRAPHY.fontFamily, color: COLORS.text, fontWeight: 600, fontSize: '15px' }}>
+            {doc.label} {mandatoryKeys.includes(doc.key) ? <span style={{ color: COLORS.primary }}>*</span> : null}
+          </div>
+          {isCompleted && (
+            <span style={{
+              fontSize: '18px',
+              color: COLORS.success,
+              fontWeight: 'bold'
+            }}>✓</span>
+          )}
         </div>
+        
         <div style={{ fontFamily: TYPOGRAPHY.fontFamily, color: COLORS.textLight, fontSize: '13px' }}>
-          File: {doc.fileName || 'Not uploaded'}
+          <strong>Status:</strong> {isCompleted ? (
+            <span style={{ color: COLORS.success, fontWeight: 600 }}>Completed</span>
+          ) : (
+            <span style={{ color: COLORS.textLight }}>Not Completed</span>
+          )}
         </div>
+        
         <div style={{ fontFamily: TYPOGRAPHY.fontFamily, color: COLORS.textLight, fontSize: '13px' }}>
-          Uploaded: {doc.uploadedAt || '—'}
+          <strong>File:</strong> {doc.fileName || 'Not uploaded'}
         </div>
+        
+        {doc.uploadedAt && (
+          <div style={{ fontFamily: TYPOGRAPHY.fontFamily, color: COLORS.textLight, fontSize: '13px' }}>
+            <strong>Uploaded:</strong> {formatDate(doc.uploadedAt)}
+          </div>
+        )}
+        
+        {doc.submittedAt && (
+          <div style={{ fontFamily: TYPOGRAPHY.fontFamily, color: COLORS.success, fontSize: '13px', fontWeight: 600 }}>
+            <strong>✓ Submitted:</strong> {formatDate(doc.submittedAt)}
+          </div>
+        )}
+        
         <div>
           <span style={getBadgeStyle(doc.status)}>{doc.status}</span>
         </div>
+        
+        {doc.status === 'Rejected' && doc.rejectionReason && (
+          <div style={{
+            padding: '8px',
+            backgroundColor: '#fff4e5',
+            borderRadius: '6px',
+            fontSize: '12px',
+            color: '#b26a00',
+            fontFamily: TYPOGRAPHY.fontFamily
+          }}>
+            <strong>Reason:</strong> {doc.rejectionReason}
+          </div>
+        )}
+        
         <div style={{ flex: 1 }} />
+        
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '4px' }}>
           <button
-            disabled={disabled}
+            disabled={!canUpload}
             onClick={() => {
+              if (!canUpload) return;
               const input = document.createElement('input');
               input.type = 'file';
               input.accept = '.pdf,.jpg,.jpeg,.png';
@@ -1293,29 +1489,53 @@ const MyInfo: React.FC = () => {
               padding: '8px 12px',
               borderRadius: '8px',
               border: 'none',
-              backgroundColor: disabled ? COLORS.border : COLORS.primary,
+              backgroundColor: canUpload ? COLORS.primary : COLORS.border,
               color: COLORS.white,
               fontFamily: TYPOGRAPHY.fontFamily,
-              cursor: disabled ? 'not-allowed' : 'pointer'
+              cursor: canUpload ? 'pointer' : 'not-allowed',
+              fontSize: '13px'
             }}
           >
-            Upload
+            {doc.status === 'Rejected' || (doc.fileName && !isCompleted) ? 'Re-upload' : 'Upload'}
           </button>
-          <button
-            disabled={!doc.url}
-            onClick={() => doc.url && window.open(doc.url, '_blank')}
-            style={{
-              padding: '8px 12px',
-              borderRadius: '8px',
-              border: `1px solid ${COLORS.border}`,
-              backgroundColor: COLORS.white,
-              color: doc.url ? COLORS.text : COLORS.textLight,
-              fontFamily: TYPOGRAPHY.fontFamily,
-              cursor: doc.url ? 'pointer' : 'not-allowed'
-            }}
-          >
-            View / Download
-          </button>
+          
+          {canSubmit && (
+            <button
+              disabled={isSubmitting}
+              onClick={() => handleSubmitDocument(doc.key)}
+              style={{
+                padding: '8px 12px',
+                borderRadius: '8px',
+                border: 'none',
+                backgroundColor: isSubmitting ? COLORS.border : COLORS.success,
+                color: COLORS.white,
+                fontFamily: TYPOGRAPHY.fontFamily,
+                cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                fontSize: '13px',
+                fontWeight: 600
+              }}
+            >
+              {isSubmitting ? 'Submitting...' : 'Submit'}
+            </button>
+          )}
+          
+          {doc.url && (
+            <button
+              onClick={() => window.open(doc.url!, '_blank')}
+              style={{
+                padding: '8px 12px',
+                borderRadius: '8px',
+                border: `1px solid ${COLORS.border}`,
+                backgroundColor: COLORS.white,
+                color: COLORS.text,
+                fontFamily: TYPOGRAPHY.fontFamily,
+                cursor: 'pointer',
+                fontSize: '13px'
+              }}
+            >
+              View
+            </button>
+          )}
         </div>
       </div>
     );
@@ -1323,6 +1543,9 @@ const MyInfo: React.FC = () => {
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: COLORS.lightBg, padding: '24px' }}>
+      <div style={{ marginBottom: '16px' }}>
+        <BackToDashboard />
+      </div>
       {/* Profile Card */}
       <div style={{
         backgroundColor: COLORS.white,
@@ -1427,8 +1650,16 @@ const MyInfo: React.FC = () => {
               Upload your KYC documents below to complete your verification.
             </p>
           </div>
-          <div style={{ fontFamily: TYPOGRAPHY.fontFamily, color: COLORS.text, fontWeight: 600 }}>
-            KYC {completed}/{mandatoryKeys.length} completed
+          <div style={{ 
+            fontFamily: TYPOGRAPHY.fontFamily, 
+            color: COLORS.text, 
+            fontWeight: 600,
+            padding: '8px 16px',
+            backgroundColor: COLORS.lightBg,
+            borderRadius: '8px',
+            border: `1px solid ${COLORS.border}`
+          }}>
+            {completed} of {mandatoryKeys.length} Sections Completed
           </div>
         </div>
 
@@ -1455,23 +1686,38 @@ const MyInfo: React.FC = () => {
           {mandatoryKeys.map(k => renderKycCard(kycDocs[k]))}
         </div>
 
-        <div style={{ marginTop: '20px' }}>
+        <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+          <div style={{ fontFamily: TYPOGRAPHY.fontFamily, color: COLORS.textLight, fontSize: '14px' }}>
+            {allSectionsCompleted ? (
+              <span style={{ color: COLORS.success, fontWeight: 600 }}>✓ All sections completed. Ready to send for approval.</span>
+            ) : (
+              <span>Complete all sections individually before sending for approval.</span>
+            )}
+          </div>
           <button
-            disabled={!canSubmit || submitLoading}
+            disabled={!canSubmit || submitLoading || overallStatus === 'Under Review' || overallStatus === 'Approved' || overallStatus === 'Re-upload Required'}
             onClick={handleSubmit}
             style={{
               padding: '12px 24px',
               borderRadius: '8px',
               border: 'none',
-              backgroundColor: (!canSubmit || submitLoading) ? COLORS.border : COLORS.primary,
+              backgroundColor: (!canSubmit || submitLoading || overallStatus === 'Under Review' || overallStatus === 'Approved' || overallStatus === 'Re-upload Required') 
+                ? COLORS.border 
+                : COLORS.primary,
               color: COLORS.white,
               fontFamily: TYPOGRAPHY.fontFamily,
               fontWeight: 600,
-              cursor: (!canSubmit || submitLoading) ? 'not-allowed' : 'pointer',
-              boxShadow: '0 6px 12px rgba(120,23,107,0.25)'
+              cursor: (!canSubmit || submitLoading || overallStatus === 'Under Review' || overallStatus === 'Approved' || overallStatus === 'Re-upload Required') 
+                ? 'not-allowed' 
+                : 'pointer',
+              boxShadow: '0 6px 12px rgba(120,23,107,0.25)',
+              fontSize: '14px'
             }}
           >
-            {overallStatus === 'Under Review' ? 'Under Review' : submitLoading ? 'Submitting...' : 'Submit Documents'}
+            {overallStatus === 'Under Review' ? 'Under Review' : 
+             overallStatus === 'Approved' ? '✓ Approved' :
+             overallStatus === 'Re-upload Required' ? 'Re-upload Required' :
+             submitLoading ? 'Sending...' : 'Send All for Approval'}
           </button>
         </div>
       </div>
